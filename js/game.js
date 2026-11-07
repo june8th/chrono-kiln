@@ -1,532 +1,525 @@
-// CHRONO-KILN // 88 — Complete Game Engine & 2.5D Isometric Neon Renderer
+// CHRONO-KILN // GEAR-LOOP — Authentic PICO-8 Steampunk Clockwork Renderer & Engine
+// Matches the original pixel-art visual design (concept3_chrono_kiln_1794020308789.jpg)
 
 (() => {
   const canvas = document.getElementById('kiln-canvas');
   const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
 
-  // Directions in isometric grid space:
-  // 0: North (r - 1, c) -> Up-Left on screen
-  // 1: East  (r, c + 1) -> Up-Right on screen
-  // 2: South (r + 1, c) -> Down-Right on screen
-  // 3: West  (r, c - 1) -> Down-Left on screen
-  const DIRS = [
-    { dr: -1, dc: 0, opp: 2 }, // N
-    { dr: 0, dc: 1, opp: 3 },  // E
-    { dr: 1, dc: 0, opp: 0 },  // S
-    { dr: 0, dc: -1, opp: 1 }  // W
-  ];
+  // ============================================================================
+  // 16x16 PIXEL ART SPRITE MATRICES (Scaled 4x for crisp retro pixel art)
+  // ============================================================================
+  const PALETTE = {
+    '.': null,
+    'K': '#09080d', // Black outline
+    // Automaton (Copper / Brass / Glowing Eyes)
+    'B': '#7a4419', // Dark bronze shadow
+    'M': '#bf6f28', // Mid copper
+    'H': '#e89f43', // Bright brass highlight
+    'E': '#fff785', // Glowing yellow eye
+    'G': '#383f52', // Iron joint gray
+    // Sulfur Crystal (Yellows / Golds)
+    'Y': '#fffb9e', // Crystal white-yellow
+    'S': '#ffe033', // Bright sulfur yellow
+    'D': '#d49217', // Gold shadow
+    'O': '#8c520a', // Deep amber base
+    // Mercury Flask (Silvers / Blues / Cork)
+    'W': '#ffffff', // Specular white
+    'L': '#ced9ed', // Light silver-blue glass
+    'A': '#8a9bb8', // Mid silver liquid
+    'U': '#52617a', // Dark slate glass shadow
+    'C': '#a85d24', // Cork brown
+    // Cinder Flame (Reds / Oranges / Yellows)
+    'R': '#d92818', // Outer crimson red
+    'F': '#ff6a00', // Mid blaze orange
+    'Z': '#ffcf14', // Inner flame gold
+    // Salt Gem (Cyan / Prismatic)
+    'P': '#6be6ff', // Cyan facet
+    'Q': '#248fb8'  // Deep cyan shadow
+  };
 
-  const SECTORS = [
-    { id: 1, name: 'SECTOR 1/5: LANTERN ALLEY', enemyCount: 3, boss: false },
-    { id: 2, name: 'SECTOR 2/5: STEAMDUCT BAZAAR', enemyCount: 4, boss: false },
-    { id: 3, name: 'SECTOR 3/5: MERCURY VIADUCT', enemyCount: 5, boss: false },
-    { id: 4, name: 'SECTOR 4/5: NEON FOUNDRY 88', enemyCount: 6, boss: false },
-    { id: 5, name: 'SECTOR 5/5: GRAND CHRONO-CORE', enemyCount: 5, boss: true }
-  ];
+  const SPRITES = {
+    // Cute-but-deadly Clockwork Rust-Automaton (16x16)
+    automaton: [
+      '....KKKKKKKK....',
+      '...KHHHHHHHHK...',
+      '..KHMMMMMMMMHK..',
+      '..KMEEKMmkEEMK..'.replace('mk', 'MM'),
+      '..KMEEKMMKEEMK..',
+      '..KBBBBBBBBBBK..',
+      '.KKGGGGGGGGGGKK.',
+      'KHMKKKKKKKKKKMHK',
+      'KMBKHHHHHHHHKBMK',
+      'KMBKHMHBBHMHKBMK',
+      'KMBKBBBBBBBBKBMK',
+      'KK.KKKKKKKKKK.KK',
+      '....KMBKKBMK....',
+      '....KMBKKBMK....',
+      '...KKBBKKBBKK...',
+      '...KKKKKKKKKK...'
+    ],
+    // Armored Clamp-Golem Automaton (16x16)
+    golem: [
+      '...KKKKKKKKKK...',
+      '..KGGGGGGGGGGK..',
+      '.KGHLLLLLLLLHGK.',
+      '.KGKEEKGGKEEKGK.',
+      '.KGGGGGGGGGGGGK.',
+      'KKBBBBBBBBBBBBKK',
+      'KGHKKKKKKKKKKHGK',
+      'KGUKHHHHHHHHKUGK',
+      'KGUKGGGGGGGGKUGK',
+      'KGUKBBBBBBBBKUGK',
+      'KKKKGGGGGGGGKKKK',
+      '...KGGK..KGGK...',
+      '...KGGK..KGGK...',
+      '..KKBBK..KBBKK..',
+      '..KKKKK..KKKKK..',
+      '................'
+    ],
+    // Yellow Sulfur Crystal Cluster (16x16)
+    sulfur: [
+      '.......KK.......',
+      '......KYYK......',
+      '.....KYSSYK.....',
+      '.....KSDDSK.....',
+      '..KK.KSDDSK.KK..',
+      '.KYYKKSDDSKKYYK.',
+      'KYSSYKSddSKYSSYK'.replace('dd', 'DD'),
+      'KSDDSKSDDSKSDDSK',
+      'KSDDSKSDDSKSDDSK',
+      '.KODDKSDDSKDDOK.',
+      '.KODDDDDDDDDDOK.',
+      '..KOOOOOOOOOOK..',
+      '..KYYOOOOOOYYK..',
+      '..KSSDDDDDDSSK..',
+      '...KKKKKKKKKK...',
+      '................'
+    ],
+    // Silver Mercury Flask with Cork (16x16)
+    mercury: [
+      '......KKKK......',
+      '......KCCK......',
+      '.....KKKKKK.....',
+      '.....KWLLWK.....',
+      '......KLLK......',
+      '.....KWLLWK.....',
+      '....KWLLLLWK....',
+      '...KWLWWWWLWK...',
+      '..KWLWLLLLAAUK..',
+      '..KWLWAAAAAAUK..',
+      '..KWLAAAAAAAuK..'.replace('u', 'U'),
+      '..KLLAAAAAAAUK..',
+      '...KUUUUUUUUK...',
+      '....KKKKKKKK....',
+      '................',
+      '................'
+    ],
+    // Cinder Fireball (16x16)
+    cinder: [
+      '.......KK.......',
+      '......KRRK......',
+      '.....KRFFRK.....',
+      '....KRFFZFRK....',
+      '...KRFZZZZFRK...',
+      '..KRFZZYYZZFRK..',
+      '.KRFZZYYYYZZFRK.',
+      '.KRFZYYYYYYZFRK.',
+      'KRFZZYYYYYYZZFRK',
+      'KRFZZYYYYYYZZFRK',
+      '.KRFFZZZZZZFFRK.',
+      '.KKRFFFFFFFFRKK.',
+      '..KKRRRRRRRRKK..',
+      '....KKKKKKKK....',
+      '................',
+      '................'
+    ],
+    // Prismatic Alchemical Salt Crystal (16x16)
+    salt: [
+      '.......KK.......',
+      '......KWWK......',
+      '.....KWPPWK.....',
+      '....KWPWWPWK....',
+      '...KWPWWWWPWK...',
+      '..KWPWWPPQQPWK..',
+      '.KWPWWPPPPQQPWK.',
+      '.KQPPPPPPPPQQQK.',
+      '..KQQPPPPQQQQK..',
+      '...KQQPPQQQQK...',
+      '....KQQQQQQK....',
+      '.....KQQQQK.....',
+      '......KKKK......',
+      '................',
+      '................',
+      '................'
+    ]
+  };
 
-  const CARD_LIBRARY = {
-    shift: {
-      id: 'shift',
-      name: 'SHIFT ROW/COL',
-      cost: 1,
-      icon: '⇄',
-      colorClass: 'card-cyan',
-      desc: 'Slide any Row or Column by 1 tile (wraps around).'
-    },
-    rotate: {
-      id: 'rotate',
-      name: 'ROTATE 2x2',
-      cost: 1,
-      icon: '↻',
-      colorClass: 'card-cyan',
-      desc: 'Spin any 2x2 quadrant & its conduits 90° CW.'
-    },
-    bellows: {
-      id: 'bellows',
-      name: 'STEAM BELLOWS',
-      cost: 1,
-      icon: '💨',
-      colorClass: 'card-gold',
-      desc: 'Shove a Row/Col into walls (4 Crush DMG) & cool -20% Pressure.'
-    },
-    transmute: {
-      id: 'transmute',
-      name: 'TRANSMUTE ╋',
-      cost: 1,
-      icon: '⚡',
-      colorClass: 'card-magenta',
-      desc: 'Cycle tile Reagent & upgrade its conduit to a 4-way Cross (╋).'
-    },
-    overclock: {
-      id: 'overclock',
-      name: 'OVERCLOCK 2X',
-      cost: 0,
-      icon: '🔥',
-      colorClass: 'card-magenta',
-      desc: 'Instant: 2.0x Route DMG this turn & +15% Pressure (Enter Zone 88!).'
-    },
-    magnet: {
-      id: 'magnet',
-      name: 'MAGNETIC SWAP',
-      cost: 1,
-      icon: '🧲',
-      colorClass: 'card-gold',
-      desc: 'Click any two tiles on the 4x4 grid to swap them directly.'
-    },
-    cryo: {
-      id: 'cryo',
-      name: 'CRYO-SURGE',
-      cost: 1,
-      icon: '❄️',
-      colorClass: 'card-cyan',
-      desc: 'Instant: Cool -25% Boiler Pressure & Deal 3 Frost DMG to all Automata.'
+  function drawPixelSprite(spriteKey, x, y, scale = 4) {
+    const rows = SPRITES[spriteKey];
+    if (!rows) return;
+    const startX = Math.round(x - (16 * scale) / 2);
+    const startY = Math.round(y - (16 * scale) / 2);
+
+    for (let r = 0; r < rows.length; r++) {
+      const rowStr = rows[r];
+      for (let c = 0; c < rowStr.length; c++) {
+        const ch = rowStr[c];
+        const color = PALETTE[ch];
+        if (color) {
+          ctx.fillStyle = color;
+          ctx.fillRect(startX + c * scale, startY + r * scale, scale, scale);
+        }
+      }
     }
+  }
+
+  // ============================================================================
+  // GRID GEOMETRY & CONSTANTS (Matches concept3_chrono_kiln_1794020308789.jpg)
+  // ============================================================================
+  const BOARD = {
+    x: 266,
+    y: 52,
+    size: 368,
+    cell: 84,
+    gap: 6,
+    padding: 8
   };
 
-  // Isometric Geometry Constants
-  const ISO = {
-    cx: 455,
-    cy: 270,
-    tw: 70, // half-width of isometric diamond
-    th: 38, // half-height of isometric diamond
-    depth: 14
-  };
-
-  function gridToScreen(r, c) {
-    const sx = ISO.cx + (c - r) * ISO.tw;
-    const sy = ISO.cy + (c + r - 3) * ISO.th;
-    return { x: sx, y: sy };
+  function getCellRect(r, c) {
+    const x = BOARD.x + BOARD.padding + c * (BOARD.cell + BOARD.gap);
+    const y = BOARD.y + BOARD.padding + r * (BOARD.cell + BOARD.gap);
+    return { x, y, w: BOARD.cell, h: BOARD.cell, cx: x + BOARD.cell / 2, cy: y + BOARD.cell / 2 };
   }
 
-  // Rotate a 4-element port array [N, E, S, W] 90 degrees clockwise
-  function rotatePortsCW(ports) {
-    return [ports[3], ports[0], ports[1], ports[2]];
-  }
+  const DEPTHS = [
+    { id: 1, name: 'DEPTH 1/5', automataTotal: 3, boss: false },
+    { id: 2, name: 'DEPTH 2/5', automataTotal: 4, boss: false },
+    { id: 3, name: 'DEPTH 3/5', automataTotal: 5, boss: false },
+    { id: 4, name: 'DEPTH 4/5', automataTotal: 6, boss: false },
+    { id: 5, name: 'DEPTH 5/5 (BOSS)', automataTotal: 5, boss: true }
+  ];
 
-  // Generate a balanced conduit port array [N, E, S, W] (at least 2-3 open ports)
-  function randomPorts(forceThreePlus = false) {
-    const templates = forceThreePlus
-      ? [
-          [1, 1, 1, 0],
-          [0, 1, 1, 1],
-          [1, 0, 1, 1],
-          [1, 1, 0, 1],
-          [1, 1, 1, 1]
-        ]
-      : [
-          [1, 0, 1, 0], // Straight N-S
-          [0, 1, 0, 1], // Straight E-W
-          [1, 1, 0, 0], // Elbow N-E
-          [0, 1, 1, 0], // Elbow E-S
-          [0, 0, 1, 1], // Elbow S-W
-          [1, 0, 0, 1], // Elbow W-N
-          [1, 1, 1, 0], // T-junction
-          [0, 1, 1, 1], // T-junction
-          [1, 0, 1, 1], // T-junction
-          [1, 1, 0, 1], // T-junction
-          [1, 1, 1, 1]  // Crossroad
-        ];
-    return [...templates[Math.floor(Math.random() * templates.length)]];
-  }
+  const CARD_DEFS = [
+    {
+      id: 'shift',
+      title: 'SHIFT\nROW',
+      cost: 1,
+      desc: 'Slide any Row or Column by 1 tile'
+    },
+    {
+      id: 'rotate',
+      title: 'ROTATE\n2x2',
+      cost: 1,
+      desc: 'Rotate any 2x2 block 90° clockwise'
+    },
+    {
+      id: 'bellows',
+      title: 'BELLOWS',
+      cost: 1,
+      desc: 'Shove Row/Col (4 Crush DMG) & Cool -20% Pressure'
+    },
+    {
+      id: 'transmute',
+      title: 'TRANSMUTE',
+      cost: 1,
+      desc: 'Transform tile Reagent or blast Automaton (-4 HP)'
+    }
+  ];
 
-  function randomReagent() {
-    const bag = ['sulfur', 'sulfur', 'mercury', 'mercury', 'cinder', 'cinder', 'salt'];
-    return bag[Math.floor(Math.random() * bag.length)];
-  }
-
-  // Main Game State
   const state = {
-    sectorIndex: 0,
+    depthIdx: 0,
     turn: 1,
     hull: 3,
     maxHull: 3,
-    energy: 3,
-    maxEnergy: 3,
-    freeNudgeAvailable: true,
-    pressure: 64, // Start right in Zone 88!
+    ap: 3,
+    maxAp: 3,
+    freeMove: true,
+    pressure: 75, // Matches the iconic "PRESSURE: 75%" from the original graphic!
     gold: 120,
     score: 0,
-    overclockActive: false,
-    enemiesRemainingToSpawn: 0,
-    grid: [], // 4x4 array of tile objects
-    runes: Array.from({ length: 4 }, () => Array(4).fill(null)), // Permanent floor runes
-    deck: ['shift', 'shift', 'rotate', 'rotate', 'bellows', 'transmute', 'overclock'],
-    hand: [],
-    selectedTool: null, // null | 'free_nudge' | { cardIndex, cardId }
-    swapFirstTile: null,
+    automataReserve: 0,
+    grid: [], // 4x4 of { kind: 'reagent'|'enemy', type, hp, maxHp, clamped }
+    runes: Array.from({ length: 4 }, () => Array(4).fill(null)), // '2x' | 'vent' | 'gold'
+    selectedCard: 'shift', // 'shift' | 'rotate' | 'bellows' | 'transmute'
+    cardUsesThisTurn: { shift: 0, rotate: 0, bellows: 0, transmute: 0 },
+    bonusDamage: 0,
     undoStack: [],
-    hoverTarget: null, // { type: 'tile'|'shift'|'rotate', ... }
-    activeEval: null,
+    hoverSpot: null,
+    activeCombos: null,
     animating: false,
-    surgeParticles: [],
+    blastBanner: null, // { x, y, text, timer }
+    starbursts: [],
+    steamPuffs: [
+      { x: 74, y: 112, r: 10, vx: 0.3, vy: -0.6, alpha: 0.9 },
+      { x: 92, y: 96, r: 8, vx: 0.5, vy: -0.5, alpha: 0.75 },
+      { x: 114, y: 84, r: 6, vx: 0.4, vy: -0.4, alpha: 0.5 }
+    ],
     floatingTexts: [],
-    rainDrops: Array.from({ length: 42 }, () => ({
-      x: Math.random() * 920,
-      y: Math.random() * 540,
-      len: 10 + Math.random() * 14,
-      speed: 4 + Math.random() * 4
-    })),
-    steamPuffs: [],
-    time: 0
+    tick: 0
   };
 
-  function cloneGrid(grid) {
-    return grid.map(row =>
-      row.map(cell => ({
-        ports: [...cell.ports],
-        occupant: cell.occupant ? { ...cell.occupant } : null
-      }))
-    );
+  function randomReagentType() {
+    const pool = ['sulfur', 'sulfur', 'mercury', 'mercury', 'cinder', 'cinder', 'salt'];
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
-  function saveUndoSnapshot() {
+  function createAutomaton(depthIdx, isBoss = false) {
+    if (isBoss) {
+      return {
+        kind: 'enemy',
+        type: 'golem',
+        name: 'GRAND KILN TITAN',
+        hp: 24,
+        maxHp: 24,
+        heat: 10,
+        clamped: false,
+        boss: true
+      };
+    }
+    const isGolem = depthIdx >= 1 && Math.random() < 0.3;
+    const hp = isGolem ? 8 + depthIdx * 2 : 5 + depthIdx * 2;
+    return {
+      kind: 'enemy',
+      type: isGolem ? 'golem' : 'automaton',
+      name: isGolem ? 'CLAMP-GOLEM' : 'RUST-AUTOMATON',
+      hp,
+      maxHp: hp,
+      heat: isGolem ? 8 : 6,
+      clamped: isGolem
+    };
+  }
+
+  function cloneGrid(g) {
+    return g.map(row => row.map(cell => ({ ...cell })));
+  }
+
+  function saveUndo() {
     state.undoStack.push({
       grid: cloneGrid(state.grid),
-      energy: state.energy,
-      freeNudgeAvailable: state.freeNudgeAvailable,
+      ap: state.ap,
+      freeMove: state.freeMove,
       pressure: state.pressure,
-      overclockActive: state.overclockActive,
-      hand: state.hand.map(c => ({ ...c }))
+      cardUses: { ...state.cardUsesThisTurn }
     });
     if (state.undoStack.length > 10) state.undoStack.shift();
   }
 
-  function restoreUndoSnapshot() {
+  function undoLastAction() {
     if (state.animating || state.undoStack.length === 0) return;
     const snap = state.undoStack.pop();
     state.grid = snap.grid;
-    state.energy = snap.energy;
-    state.freeNudgeAvailable = snap.freeNudgeAvailable;
+    state.ap = snap.ap;
+    state.freeMove = snap.freeMove;
     state.pressure = snap.pressure;
-    state.overclockActive = snap.overclockActive;
-    state.hand = snap.hand;
-    state.selectedTool = null;
-    state.swapFirstTile = null;
+    state.cardUsesThisTurn = snap.cardUses;
     window.kilnAudio.playCardTick();
-    recalculateAndSyncUI();
+    syncAllUI();
   }
 
-  function createEnemy(sectorIdx, forceBoss = false) {
-    if (forceBoss) {
-      return {
-        kind: 'enemy',
-        enemyType: 'boss',
-        name: 'Arch-Horologist',
-        hp: 26,
-        maxHp: 26,
-        heatPerTurn: 10,
-        clamped: false
-      };
-    }
-    const roll = Math.random();
-    if (sectorIdx >= 1 && roll < 0.28) {
-      return {
-        kind: 'enemy',
-        enemyType: 'golem',
-        name: 'Clamp-Golem',
-        hp: 7 + sectorIdx * 2,
-        maxHp: 7 + sectorIdx * 2,
-        heatPerTurn: 8,
-        clamped: true
-      };
-    } else if (roll < 0.56) {
-      return {
-        kind: 'enemy',
-        enemyType: 'bomber',
-        name: 'Spark-Bomber',
-        hp: 4 + sectorIdx,
-        maxHp: 4 + sectorIdx,
-        heatPerTurn: 6,
-        clamped: false
-      };
-    }
-    return {
-      kind: 'enemy',
-      enemyType: 'walker',
-      name: 'Rust-Walker',
-      hp: 5 + sectorIdx * 2,
-      maxHp: 5 + sectorIdx * 2,
-      heatPerTurn: 7,
-      clamped: false
-    };
-  }
-
-  function initSector(sectorIdx) {
-    state.sectorIndex = sectorIdx;
+  function initDepth(depthIdx) {
+    state.depthIdx = depthIdx;
     state.turn = 1;
     state.undoStack = [];
-    state.overclockActive = false;
-    state.selectedTool = null;
-    state.swapFirstTile = null;
+    const depth = DEPTHS[depthIdx];
 
-    const sec = SECTORS[sectorIdx];
-    // Build fresh 4x4 grid with high connectivity
+    // Initialize 4x4 Crucible Grid resembling the iconic layout
+    const initialPattern = [
+      ['automaton', 'sulfur', 'mercury', 'cinder'],
+      ['automaton', 'sulfur', 'cinder', 'mercury'],
+      ['sulfur', 'mercury', 'cinder', 'automaton'],
+      ['mercury', 'sulfur', 'mercury', 'cinder']
+    ];
+
+    let spawnedCount = 0;
+    const maxInitialEnemies = Math.min(3, depth.automataTotal);
+
     state.grid = Array.from({ length: 4 }, (_, r) =>
       Array.from({ length: 4 }, (__, c) => {
-        const isCenter = (r === 1 || r === 2) && (c === 1 || c === 2);
-        const rune = state.runes[r][c];
+        const token = initialPattern[r][c];
+        if (token === 'automaton' && spawnedCount < maxInitialEnemies) {
+          spawnedCount++;
+          return createAutomaton(depthIdx, depth.boss && spawnedCount === 1);
+        }
         return {
-          ports: rune === 'omni' ? [1, 1, 1, 1] : randomPorts(isCenter),
-          occupant: { kind: 'reagent', type: randomReagent() }
+          kind: 'reagent',
+          type: token === 'automaton' ? randomReagentType() : token
         };
       })
     );
 
-    // Spawn initial wave of Automata (2 to 3 on the board immediately, rest in reserve)
-    const initialOnBoard = Math.min(3, sec.enemyCount);
-    state.enemiesRemainingToSpawn = sec.enemyCount - initialOnBoard;
-
-    const coords = [];
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 4; c++) coords.push([r, c]);
-    }
-    coords.sort(() => Math.random() - 0.5);
-
-    for (let i = 0; i < initialOnBoard; i++) {
-      const [r, c] = coords[i];
-      const isBoss = sec.boss && i === 0;
-      state.grid[r][c].occupant = createEnemy(sectorIdx, isBoss);
-    }
-
-    startTurn();
+    state.automataReserve = depth.automataTotal - spawnedCount;
+    startNewTurn();
   }
 
-  function startTurn() {
-    state.energy = state.maxEnergy;
-    state.freeNudgeAvailable = true;
-    state.overclockActive = false;
-    state.selectedTool = null;
-    state.swapFirstTile = null;
+  function startNewTurn() {
+    state.ap = state.maxAp;
+    state.freeMove = true;
+    state.cardUsesThisTurn = { shift: 0, rotate: 0, bellows: 0, transmute: 0 };
     state.undoStack = [];
-
-    // Draw 4 cards from deck (cycling shuffle)
-    const pool = [...state.deck].sort(() => Math.random() - 0.5);
-    state.hand = pool.slice(0, 4).map((id, idx) => ({
-      uid: `${state.turn}-${idx}-${id}`,
-      id,
-      used: false
-    }));
-
-    recalculateAndSyncUI();
+    syncAllUI();
   }
 
-  // Evaluate connected routes & alchemical recipes across the 4x4 grid
-  function evaluateBoardRoutes() {
-    const visited = Array.from({ length: 4 }, () => Array(4).fill(false));
-    const components = [];
-    const edges = [];
+  // ============================================================================
+  // ALCHEMICAL COMBO DETECTION ENGINE (3-in-a-Row, Flanked Automaton, 2x2 Square)
+  // ============================================================================
+  function evaluateCombos() {
+    const matchedCells = new Set();
+    const comboLines = [];
 
-    function areConnected(r1, c1, r2, c2, dirIdx) {
-      const t1 = state.grid[r1][c1];
-      const t2 = state.grid[r2][c2];
-      const oppIdx = DIRS[dirIdx].opp;
-      // Mutual port connection
-      if (t1.ports[dirIdx] && t2.ports[oppIdx]) return true;
-      // Or if either tile has an Omni-Cross (all 4 ports) and the other has at least 2 ports
-      const isOmni1 = t1.ports.every(Boolean) || state.runes[r1][c1] === 'omni';
-      const isOmni2 = t2.ports.every(Boolean) || state.runes[r2][c2] === 'omni';
-      if ((isOmni1 && t2.ports[oppIdx]) || (isOmni2 && t1.ports[dirIdx])) return true;
-      return false;
-    }
+    function checkLine(coords) {
+      const cells = coords.map(([r, c]) => state.grid[r][c]);
 
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 4; c++) {
-        if (visited[r][c]) continue;
-        const queue = [[r, c]];
-        visited[r][c] = true;
-        const comp = [];
+      // Check every contiguous 3-cell window in the 4-cell row/col
+      for (let start = 0; start <= 1; start++) {
+        const subCoords = coords.slice(start, start + 3);
+        const subCells = cells.slice(start, start + 3);
 
-        while (queue.length > 0) {
-          const [cr, cc] = queue.shift();
-          comp.push([cr, cc]);
-          DIRS.forEach((d, dirIdx) => {
-            const nr = cr + d.dr;
-            const nc = cc + d.dc;
-            if (nr >= 0 && nr < 4 && nc >= 0 && nc < 4) {
-              if (areConnected(cr, cc, nr, nc, dirIdx)) {
-                if (cr < nr || (cr === nr && cc < nc)) {
-                  edges.push({ r1: cr, c1: cc, r2: nr, c2: nc });
-                }
-                if (!visited[nr][nc]) {
-                  visited[nr][nc] = true;
-                  queue.push([nr, nc]);
-                }
-              }
-            }
+        const reagents = subCells.filter(c => c.kind === 'reagent');
+        const enemies = subCells.filter(c => c.kind === 'enemy');
+
+        let validRecipe = null;
+        if (reagents.length === 3) {
+          const uniqueTypes = new Set(reagents.map(x => x.type));
+          // 1) 3 identical reagents OR 3 distinct reagents (e.g. Sulfur + Mercury + Cinder) OR Salt wildcard
+          if (
+            uniqueTypes.size === 1 ||
+            uniqueTypes.size === 3 ||
+            reagents.some(x => x.type === 'salt')
+          ) {
+            validRecipe = 'CALCINATION BLAST!';
+          }
+        } else if (reagents.length === 2 && enemies.length === 1) {
+          // 2) Classic Chrono-Kiln Recipe: 2 Reagents + 1 Automaton in a 3-tile line!
+          const rTypes = reagents.map(x => x.type);
+          if (rTypes[0] === rTypes[1] || rTypes[0] !== rTypes[1]) {
+            validRecipe = 'CALCINATION BLAST!';
+          }
+        }
+
+        if (validRecipe) {
+          subCoords.forEach(([r, c]) => matchedCells.add(`${r},${c}`));
+          comboLines.push({
+            type: validRecipe,
+            coords: subCoords,
+            center: subCoords[1]
           });
         }
-        if (comp.length >= 2) {
-          components.push(comp);
-        }
       }
     }
 
-    // Also check for 3-in-a-row matching reagent alignments or Trio lines (Calcination bonus!)
-    const lineTiles = new Set();
+    // Check all 4 rows and 4 columns
     for (let r = 0; r < 4; r++) {
-      for (let startC = 0; startC <= 1; startC++) {
-        const slice = [0, 1, 2].map(dc => state.grid[r][startC + dc].occupant);
-        if (isCalcinationTrio(slice)) {
-          [0, 1, 2].forEach(dc => lineTiles.add(`${r},${startC + dc}`));
-        }
-      }
+      checkLine([
+        [r, 0],
+        [r, 1],
+        [r, 2],
+        [r, 3]
+      ]);
     }
     for (let c = 0; c < 4; c++) {
-      for (let startR = 0; startR <= 1; startR++) {
-        const slice = [0, 1, 2].map(dr => state.grid[startR + dr][c].occupant);
-        if (isCalcinationTrio(slice)) {
-          [0, 1, 2].forEach(dr => lineTiles.add(`${startR + dr},${c}`));
-        }
-      }
+      checkLine([
+        [0, c],
+        [1, c],
+        [2, c],
+        [3, c]
+      ]);
     }
 
-    // Choose all components of size >= 3 (plus any 3-in-a-row line tiles) as the Active Surge Network
-    components.sort((a, b) => b.length - a.length);
-    const activeSet = new Set();
-    components.forEach((comp, idx) => {
-      if (comp.length >= 3 || idx === 0) {
-        comp.forEach(([r, c]) => activeSet.add(`${r},${c}`));
-      }
-    });
-    lineTiles.forEach(key => activeSet.add(key));
-
-    const activeCoords = Array.from(activeSet).map(k => k.split(',').map(Number));
-
-    // Check Recipes:
-    // 1. Calcination Line: 3+ active tiles in same row/col OR Sulfur + Mercury + Cinder all present in activeCoords
-    const reagentTypesPresent = new Set();
-    const rowCounts = [0, 0, 0, 0];
-    const colCounts = [0, 0, 0, 0];
-
-    activeCoords.forEach(([r, c]) => {
-      rowCounts[r]++;
-      colCounts[c]++;
-      const occ = state.grid[r][c].occupant;
-      if (occ && occ.kind === 'reagent') {
-        reagentTypesPresent.add(occ.type);
-      }
-    });
-
-    const hasTrioElements =
-      (reagentTypesPresent.has('sulfur') &&
-        reagentTypesPresent.has('mercury') &&
-        reagentTypesPresent.has('cinder')) ||
-      (reagentTypesPresent.has('salt') && reagentTypesPresent.size >= 3);
-
-    const hasStraightThree =
-      rowCounts.some(cnt => cnt >= 3) ||
-      colCounts.some(cnt => cnt >= 3) ||
-      lineTiles.size >= 3;
-
-    const recipeCalcination = activeCoords.length >= 3 && (hasStraightThree || hasTrioElements);
-
-    // 2. Solar Loop: Any 2x2 block fully inside activeSet
-    let recipeSolarLoop = false;
+    // Also check 2x2 Solar Squares (4 matching reagents or 3 matching reagents + 1 Automaton)
     for (let r = 0; r < 3; r++) {
       for (let c = 0; c < 3; c++) {
-        if (
-          activeSet.has(`${r},${c}`) &&
-          activeSet.has(`${r + 1},${c}`) &&
-          activeSet.has(`${r},${c + 1}`) &&
-          activeSet.has(`${r + 1},${c + 1}`)
-        ) {
-          recipeSolarLoop = true;
+        const sqCoords = [
+          [r, c],
+          [r, c + 1],
+          [r + 1, c],
+          [r + 1, c + 1]
+        ];
+        const sqCells = sqCoords.map(([rr, cc]) => state.grid[rr][cc]);
+        const reagents = sqCells.filter(x => x.kind === 'reagent');
+        if (reagents.length >= 3) {
+          const counts = {};
+          reagents.forEach(x => {
+            counts[x.type] = (counts[x.type] || 0) + 1;
+          });
+          if (Object.values(counts).some(cnt => cnt >= 3)) {
+            sqCoords.forEach(([rr, cc]) => matchedCells.add(`${rr},${cc}`));
+            comboLines.push({
+              type: 'SOLAR CRUCIBLE!',
+              coords: sqCoords,
+              center: [r, c + 1]
+            });
+          }
         }
       }
     }
 
-    // 3. Philosopher's Chain (ROUTE // 88): 5 or more linked tiles in the main component
-    const maxCompLen = components.length > 0 ? components[0].length : activeCoords.length;
-    const recipePhilosopher = maxCompLen >= 5 || activeCoords.length >= 6;
+    const activeCoords = Array.from(matchedCells).map(k => k.split(',').map(Number));
 
-    // Tally Base Damage, Gold, Pressure Delta, and Multipliers
-    let baseDmg = activeCoords.length >= 2 ? 3 : 0;
+    // Calculate total damage, gold, and pressure change
+    let baseDmg = state.bonusDamage;
     let goldGain = 0;
     let pressureDelta = 0;
     let mult = 1.0;
 
     activeCoords.forEach(([r, c]) => {
-      const occ = state.grid[r][c].occupant;
+      const cell = state.grid[r][c];
       const rune = state.runes[r][c];
-      const nodeMult = rune === '2x' ? 2 : 1;
+      const rMult = rune === '2x' ? 2 : 1;
 
-      if (rune === 'cryo') pressureDelta -= 8;
-      if (rune === 'gold') goldGain += 35;
+      if (rune === 'vent') pressureDelta -= 8;
+      if (rune === 'gold') goldGain += 30;
 
-      if (occ && occ.kind === 'reagent') {
-        if (occ.type === 'sulfur') {
-          baseDmg += 4 * nodeMult;
-          goldGain += 25 * nodeMult;
-        } else if (occ.type === 'mercury') {
-          baseDmg += 2 * nodeMult;
-          pressureDelta -= 12 * nodeMult;
-        } else if (occ.type === 'cinder') {
-          baseDmg += 3 * nodeMult;
-          pressureDelta += 10;
-          mult *= nodeMult > 1 ? 1.8 : 1.45;
-        } else if (occ.type === 'salt') {
-          baseDmg += 3 * nodeMult;
-          goldGain += 35 * nodeMult;
-          pressureDelta -= 5;
+      if (cell.kind === 'reagent') {
+        if (cell.type === 'sulfur') {
+          baseDmg += 4 * rMult;
+          goldGain += 20 * rMult;
+        } else if (cell.type === 'mercury') {
+          baseDmg += 2 * rMult;
+          pressureDelta -= 14 * rMult;
+        } else if (cell.type === 'cinder') {
+          baseDmg += 3 * rMult;
+          pressureDelta += 8;
+          mult *= 1.35;
+        } else if (cell.type === 'salt') {
+          baseDmg += 3 * rMult;
+          goldGain += 30 * rMult;
+          pressureDelta -= 6;
         }
-      } else if (occ && occ.kind === 'enemy') {
-        baseDmg += 2 * nodeMult;
+      } else if (cell.kind === 'enemy') {
+        baseDmg += 3 * rMult;
       }
     });
 
-    if (recipeCalcination) {
-      mult *= 1.6;
-      pressureDelta -= 10;
-      goldGain += 25;
-    }
-    if (recipeSolarLoop) {
-      mult *= 1.8;
-      goldGain += 35;
-    }
-    if (recipePhilosopher) {
-      mult *= 2.2;
-      goldGain += 50;
-    }
-
-    // Zone 88 Thermal Resonance Bonus (60% - 88%)
-    const inZone88 = state.pressure >= 60 && state.pressure <= 88;
-    if (inZone88) {
+    // Sweet Spot Overdrive (60% - 85% Boiler Pressure)
+    const inSweetSpot = state.pressure >= 60 && state.pressure <= 85;
+    if (inSweetSpot) {
       mult *= 1.5;
       goldGain = Math.round(goldGain * 1.5);
     }
 
-    if (state.overclockActive) {
-      mult *= 2.0;
-    }
+    const totalBlastDmg = Math.max(4, Math.round(baseDmg * mult));
 
-    const totalSurgeDmg = Math.max(0, Math.round(baseDmg * mult));
-
-    // Determine which Automata are hit (Direct on route = 100% DMG; Orthogonal neighbor to route = 75% Arc Splash DMG)
+    // Any Automaton inside or orthogonally adjacent to a matched combo cell is blasted!
     const enemyHits = [];
-    const hasMercuryOrCinder =
-      reagentTypesPresent.has('mercury') ||
-      reagentTypesPresent.has('cinder') ||
-      reagentTypesPresent.has('salt');
-
     for (let r = 0; r < 4; r++) {
       for (let c = 0; c < 4; c++) {
-        const occ = state.grid[r][c].occupant;
-        if (occ && occ.kind === 'enemy') {
-          const onRoute = activeSet.has(`${r},${c}`);
-          let nearRoute = false;
-          DIRS.forEach(d => {
-            if (activeSet.has(`${r + d.dr},${c + d.dc}`)) nearRoute = true;
-          });
+        const cell = state.grid[r][c];
+        if (cell.kind === 'enemy' && activeCoords.length > 0) {
+          const isDirect = matchedCells.has(`${r},${c}`);
+          const isAdjacent = [
+            [r - 1, c],
+            [r + 1, c],
+            [r, c - 1],
+            [r, c + 1]
+          ].some(([nr, nc]) => matchedCells.has(`${nr},${nc}`));
 
-          if (onRoute && totalSurgeDmg > 0) {
-            enemyHits.push({ r, c, dmg: totalSurgeDmg, direct: true });
-          } else if (nearRoute && totalSurgeDmg > 0) {
-            const splashRatio = hasMercuryOrCinder ? 1.0 : 0.7;
+          if (isDirect || isAdjacent) {
             enemyHits.push({
               r,
               c,
-              dmg: Math.max(2, Math.round(totalSurgeDmg * splashRatio)),
-              direct: false
+              dmg: isDirect ? totalBlastDmg : Math.max(3, Math.round(totalBlastDmg * 0.75)),
+              direct: isDirect
             });
           }
         }
@@ -534,843 +527,473 @@
     }
 
     return {
-      activeSet,
+      matchedCells,
       activeCoords,
-      edges,
-      recipeCalcination,
-      recipeSolarLoop,
-      recipePhilosopher,
-      inZone88,
-      totalSurgeDmg,
+      comboLines,
+      totalBlastDmg,
       goldGain,
       pressureDelta,
-      enemyHits
+      enemyHits,
+      inSweetSpot
     };
   }
 
-  function isCalcinationTrio(slice) {
-    if (slice.some(s => !s)) return false;
-    const reagentSlice = slice.filter(s => s.kind === 'reagent');
-    if (reagentSlice.length === 3) {
-      const types = new Set(reagentSlice.map(s => s.type));
-      // Either 3 of the same OR 3 distinct reagents
-      if (types.size === 1 || types.size === 3) return true;
+  // ============================================================================
+  // BOARD MANIPULATION ACTIONS
+  // ============================================================================
+  function trySpendMove(cardType, callback) {
+    if (state.animating) return;
+
+    // Use Free Wrench Move first if available for Shift / Rotate
+    if (state.freeMove && (cardType === 'shift' || cardType === 'rotate')) {
+      saveUndo();
+      if (callback() !== false) {
+        state.freeMove = false;
+        syncAllUI();
+      } else {
+        state.undoStack.pop();
+      }
+      return;
     }
-    // Or 2 reagents flanking an Automaton!
-    if (
-      slice[0].kind === 'reagent' &&
-      slice[1].kind === 'enemy' &&
-      slice[2].kind === 'reagent'
-    ) {
-      return true;
+
+    const def = CARD_DEFS.find(d => d.id === cardType);
+    if (!def || state.ap < def.cost) {
+      const strip = document.getElementById('preview-text');
+      strip.innerHTML = `<strong style="color:#ff5959">⚠️ Out of Steam AP! Pull the red [IGNITE] lever or click [↶ UNDO].</strong>`;
+      return;
     }
-    return false;
+
+    saveUndo();
+    if (callback() !== false) {
+      state.ap -= def.cost;
+      state.cardUsesThisTurn[cardType] = (state.cardUsesThisTurn[cardType] || 0) + 1;
+      syncAllUI();
+    } else {
+      state.undoStack.pop();
+    }
   }
 
-  // Board Operations: Shift Row/Col, Rotate 2x2, Steam Bellows, Transmute, Swap
-  function shiftLine(isRow, index, delta) {
-    if ( isRow ) {
-      const row = state.grid[index];
-      if (delta > 0) {
-        const last = row.pop();
-        row.unshift(last);
+  function shiftRowOrCol(isRow, idx, dir) {
+    if (isRow) {
+      const row = state.grid[idx];
+      if (dir > 0) {
+        row.unshift(row.pop());
       } else {
-        const first = row.shift();
-        row.push(first);
+        row.push(row.shift());
       }
     } else {
-      const col = [0, 1, 2, 3].map(r => state.grid[r][index]);
-      if (delta > 0) {
-        const last = col.pop();
-        col.unshift(last);
+      const col = [0, 1, 2, 3].map(r => state.grid[r][idx]);
+      if (dir > 0) {
+        col.unshift(col.pop());
       } else {
-        const first = col.shift();
-        col.push(first);
+        col.push(col.shift());
       }
-      for (let r = 0; r < 4; r++) {
-        state.grid[r][index] = col[r];
-      }
+      for (let r = 0; r < 4; r++) state.grid[r][idx] = col[r];
     }
     window.kilnAudio.playRowSlide();
+    return true;
   }
 
-  function rotateQuadrant2x2(tlRow, tlCol, clockwise = true) {
-    // Check if any Clamp-Golem inside this 2x2 is currently clamping it
+  function rotate2x2Quadrant(tlR, tlC) {
     const coords = [
-      [tlRow, tlCol],
-      [tlRow, tlCol + 1],
-      [tlRow + 1, tlCol + 1],
-      [tlRow + 1, tlCol]
+      [tlR, tlC],
+      [tlR, tlC + 1],
+      [tlR + 1, tlC + 1],
+      [tlR + 1, tlC]
     ];
     for (const [r, c] of coords) {
-      const occ = state.grid[r][c].occupant;
-      if (occ && occ.kind === 'enemy' && occ.clamped) {
-        spawnFloatingText(
-          r,
-          c,
-          '🔒 CLAMPED! USE SHIFT OR BELLOWS!',
-          '#ff2a85'
-        );
+      if (state.grid[r][c].kind === 'enemy' && state.grid[r][c].clamped) {
+        addFloatingText(r, c, '🔒 CLAMPED! USE BELLOWS!', '#ff5959');
         window.kilnAudio.playAutomatonBlast();
         return false;
       }
     }
-
-    const cells = coords.map(([r, c]) => state.grid[r][c]);
-    if (clockwise) {
-      // Top-Left -> Top-Right -> Bottom-Right -> Bottom-Left
-      const rotated = [cells[3], cells[0], cells[1], cells[2]].map(cell => ({
-        ...cell,
-        ports: rotatePortsCW(cell.ports)
-      }));
-      coords.forEach(([r, c], idx) => {
-        state.grid[r][c] = rotated[idx];
-      });
-    } else {
-      const rotated = [cells[1], cells[2], cells[3], cells[0]].map(cell => ({
-        ...cell,
-        ports: rotatePortsCW(rotatePortsCW(rotatePortsCW(cell.ports)))
-      }));
-      coords.forEach(([r, c], idx) => {
-        state.grid[r][c] = rotated[idx];
-      });
-    }
+    const vals = coords.map(([r, c]) => state.grid[r][c]);
+    const rotated = [vals[3], vals[0], vals[1], vals[2]];
+    coords.forEach(([r, c], i) => {
+      state.grid[r][c] = rotated[i];
+    });
     window.kilnAudio.playGearRotate();
     return true;
   }
 
-  function triggerSteamBellows(isRow, index) {
+  function fireBellowsOnRow(r) {
     window.kilnAudio.playSteamVent();
     state.pressure = Math.max(0, state.pressure - 20);
-    // Shift line AND deal 4 Crush Damage + break Clamp locks on all enemies in that row/col
-    shiftLine(isRow, index, 1);
-    for (let i = 0; i < 4; i++) {
-      const r = isRow ? index : i;
-      const c = isRow ? i : index;
-      const occ = state.grid[r][c].occupant;
-      // Add steam puff visuals
-      const pt = gridToScreen(r, c);
-      for (let p = 0; p < 6; p++) {
-        state.steamPuffs.push({
-          x: pt.x + (Math.random() - 0.5) * 30,
-          y: pt.y + (Math.random() - 0.5) * 20,
-          vx: (Math.random() - 0.5) * 2,
-          vy: -1.5 - Math.random() * 2,
-          radius: 8 + Math.random() * 10,
-          alpha: 0.85
-        });
-      }
-      if (occ && occ.kind === 'enemy') {
-        occ.clamped = false;
-        occ.hp -= 4;
-        spawnFloatingText(r, c, '💨 CRUSH -4 HP!', '#00f5ff');
-        if (occ.hp <= 0) {
-          handleEnemyDefeat(r, c, occ);
+    shiftRowOrCol(true, r, 1);
+
+    for (let c = 0; c < 4; c++) {
+      const cell = state.grid[r][c];
+      const rect = getCellRect(r, c);
+      state.starbursts.push({ x: rect.cx, y: rect.cy, radius: 28, alpha: 1.0 });
+      if (cell.kind === 'enemy') {
+        cell.clamped = false;
+        cell.hp -= 4;
+        addFloatingText(r, c, '💨 BELLOWS -4 HP!', '#ffd56b');
+        if (cell.hp <= 0) {
+          destroyAutomaton(r, c, cell);
         }
       }
     }
+    return true;
   }
 
-  function triggerTransmuteTile(r, c) {
+  function transmuteSingleTile(r, c) {
     const cell = state.grid[r][c];
-    cell.ports = [1, 1, 1, 1]; // Upgrade conduit to 4-way Omni-Cross!
-    const cycle = ['sulfur', 'mercury', 'cinder', 'salt'];
-    if (cell.occupant && cell.occupant.kind === 'reagent') {
-      const nextIdx = (cycle.indexOf(cell.occupant.type) + 1) % cycle.length;
-      cell.occupant.type = cycle[nextIdx];
-      spawnFloatingText(
-        r,
-        c,
-        `╋ ${cell.occupant.type.toUpperCase()}!`,
-        '#ffb800'
-      );
-    } else if (cell.occupant && cell.occupant.kind === 'enemy') {
-      cell.occupant.clamped = false;
-      cell.occupant.hp -= 3;
-      spawnFloatingText(r, c, '╋ SHOCK -3 HP!', '#ff2a85');
-      if (cell.occupant.hp <= 0) {
-        handleEnemyDefeat(r, c, cell.occupant);
+    if (cell.kind === 'reagent') {
+      const order = ['sulfur', 'mercury', 'cinder', 'salt'];
+      cell.type = order[(order.indexOf(cell.type) + 1) % order.length];
+      addFloatingText(r, c, `⚛ ${cell.type.toUpperCase()}!`, '#ffd56b');
+      window.kilnAudio.playRecipeFanfare();
+    } else if (cell.kind === 'enemy') {
+      cell.clamped = false;
+      cell.hp -= 4;
+      addFloatingText(r, c, '⚛ TRANSMUTE -4 HP!', '#ff5959');
+      window.kilnAudio.playAutomatonBlast();
+      if (cell.hp <= 0) {
+        destroyAutomaton(r, c, cell);
       }
     }
-    window.kilnAudio.playRecipeFanfare();
+    return true;
   }
 
-  function handleEnemyDefeat(r, c, enemy) {
+  function destroyAutomaton(r, c, enemy) {
     window.kilnAudio.playAutomatonBlast();
-    const bounty = enemy.enemyType === 'boss' ? 200 : enemy.enemyType === 'golem' ? 65 : 45;
-    state.gold += bounty;
-    state.score += bounty * 3;
-    spawnFloatingText(r, c, `💥 SCRAPPED +$${bounty}!`, '#ffb800');
-
-    // If Spark-Bomber, detonate 4 damage to orthogonal neighbors!
-    const wasBomber = enemy.enemyType === 'bomber';
-    state.grid[r][c].occupant = {
-      kind: 'reagent',
-      type: wasBomber ? 'cinder' : 'salt'
-    };
-
-    if (wasBomber) {
-      DIRS.forEach(d => {
-        const nr = r + d.dr;
-        const nc = c + d.dc;
-        if (nr >= 0 && nr < 4 && nc >= 0 && nc < 4) {
-          const nOcc = state.grid[nr][nc].occupant;
-          if (nOcc && nOcc.kind === 'enemy') {
-            nOcc.hp -= 4;
-            spawnFloatingText(nr, nc, '💣 BLAST -4!', '#ff2a85');
-            if (nOcc.hp <= 0) {
-              handleEnemyDefeat(nr, nc, nOcc);
-            }
-          }
-        }
-      });
-    }
+    const reward = enemy.boss ? 200 : 50;
+    state.gold += reward;
+    state.score += reward * 4;
+    const rect = getCellRect(r, c);
+    state.starbursts.push({ x: rect.cx, y: rect.cy, radius: 48, alpha: 1.0 });
+    addFloatingText(r, c, `💥 +${reward} GOLD!`, '#ffd56b');
+    state.grid[r][c] = { kind: 'reagent', type: 'sulfur' };
   }
 
-  // Spend resource (either selected card, Free Nudge, or auto-matched hand card)
-  function tryConsumeForBoardAction(actionType, executeCallback) {
-    if (state.animating) return;
-
-    // 1. Check if player explicitly selected a matching tool
-    if (state.selectedTool === 'free_nudge') {
-      if (!state.freeNudgeAvailable) return;
-      saveUndoSnapshot();
-      if (executeCallback() !== false) {
-        state.freeNudgeAvailable = false;
-        state.selectedTool = null;
-        recalculateAndSyncUI();
-      } else {
-        state.undoStack.pop();
-      }
-      return;
-    }
-
-    if (state.selectedTool && state.selectedTool.cardId) {
-      const cardSlot = state.hand[state.selectedTool.cardIndex];
-      const def = CARD_LIBRARY[state.selectedTool.cardId];
-      if (!cardSlot || cardSlot.used || state.energy < def.cost) return;
-
-      saveUndoSnapshot();
-      if (executeCallback(state.selectedTool.cardId) !== false) {
-        cardSlot.used = true;
-        state.energy -= def.cost;
-        state.selectedTool = null;
-        recalculateAndSyncUI();
-      } else {
-        state.undoStack.pop();
-      }
-      return;
-    }
-
-    // 2. Direct Board Click Auto-Resolution:
-    // Prefer Free Nudge first so cards/energy are saved, or use matching card in hand!
-    if (state.freeNudgeAvailable) {
-      saveUndoSnapshot();
-      if (executeCallback('free_nudge') !== false) {
-        state.freeNudgeAvailable = false;
-        recalculateAndSyncUI();
-      } else {
-        state.undoStack.pop();
-      }
-      return;
-    }
-
-    const matchingCardIdx = state.hand.findIndex(
-      c => !c.used && c.id === actionType && state.energy >= CARD_LIBRARY[c.id].cost
-    );
-    if (matchingCardIdx !== -1) {
-      const cardSlot = state.hand[matchingCardIdx];
-      const def = CARD_LIBRARY[cardSlot.id];
-      saveUndoSnapshot();
-      if (executeCallback(cardSlot.id) !== false) {
-        cardSlot.used = true;
-        state.energy -= def.cost;
-        recalculateAndSyncUI();
-      } else {
-        state.undoStack.pop();
-      }
-    } else {
-      // Flash hint
-      const hintEl = document.getElementById('board-hint');
-      hintEl.innerHTML = `<span class="accent-magenta">⚠️ No ${actionType.toUpperCase()} card or Free Nudge remaining! Pull <strong>[IGNITE ▶]</strong> or click <strong>[↶ UNDO]</strong>.</span>`;
-    }
+  function addFloatingText(r, c, text, color) {
+    const rect = getCellRect(r, c);
+    state.floatingTexts.push({
+      x: rect.cx,
+      y: rect.cy - 18,
+      text,
+      color,
+      alpha: 1.0
+    });
   }
 
-  // Pull [IGNITE ▶]: Execute the 88 MPH Neon Surge along the active route!
-  async function executeIgniteSequence() {
+  // ============================================================================
+  // PULL RED [IGNITE] LEVER — EXECUTE CALCINATION BLASTS!
+  // ============================================================================
+  async function pullIgniteLever() {
     if (state.animating) return;
     state.animating = true;
-    state.selectedTool = null;
-    state.swapFirstTile = null;
 
-    const evalRes = evaluateBoardRoutes();
-    const bannerEl = document.getElementById('combo-banner');
-    const titleEl = document.getElementById('combo-title');
-    const subEl = document.getElementById('combo-sub');
+    const leverBtn = document.getElementById('btn-ignite');
+    leverBtn.classList.add('pulled');
+    window.kilnAudio.playRowSlide();
 
-    // Show Combo Banner if any recipe or Zone 88 triggered
-    const recipesTriggered = [];
-    if (evalRes.recipePhilosopher) recipesTriggered.push('ROUTE // 88 OVERDRIVE (3.0x)');
-    if (evalRes.recipeSolarLoop) recipesTriggered.push('SOLAR LOOP (2.2x +1E)');
-    if (evalRes.recipeCalcination) recipesTriggered.push('CALCINATION LINE (1.8x)');
+    const ev = evaluateCombos();
 
-    if (recipesTriggered.length > 0 || evalRes.activeCoords.length >= 3) {
+    if (ev.activeCoords.length > 0) {
       window.kilnAudio.playRecipeFanfare();
-      titleEl.textContent =
-        recipesTriggered[0] || `⚡ NEON CONDUIT SURGE (${evalRes.activeCoords.length} NODES)`;
-      subEl.textContent = `${evalRes.totalSurgeDmg} SURGE DMG // +$${evalRes.goldGain} GOLD // ${
-        evalRes.pressureDelta >= 0 ? '+' : ''
-      }${evalRes.pressureDelta}% PRESSURE`;
-      bannerEl.classList.remove('hidden');
-    }
 
-    // Step-by-step 88 MPH Surge Hop along activeCoords
-    for (let i = 0; i < evalRes.activeCoords.length; i++) {
-      const [r, c] = evalRes.activeCoords[i];
-      const pt = gridToScreen(r, c);
-      window.kilnAudio.playRouteHop(i);
+      // Show iconic [CALCINATION BLAST!] pixel starburst & banner right on the grid!
+      const focusCoord = ev.comboLines[0] ? ev.comboLines[0].center : ev.activeCoords[0];
+      const focusRect = getCellRect(focusCoord[0], focusCoord[1]);
+      state.blastBanner = {
+        x: focusRect.cx,
+        y: focusRect.cy,
+        text: ev.comboLines[0] ? ev.comboLines[0].type : 'CALCINATION BLAST!'
+      };
 
-      for (let p = 0; p < 10; p++) {
-        const angle = (Math.PI * 2 * p) / 10;
-        state.surgeParticles.push({
-          x: pt.x,
-          y: pt.y - 10,
-          vx: Math.cos(angle) * (2 + Math.random() * 2.5),
-          vy: Math.sin(angle) * (2 + Math.random() * 2.5) - 1,
-          color: i % 2 === 0 ? '#00f5ff' : '#ffb800',
-          life: 1.0
-        });
+      for (let i = 0; i < ev.activeCoords.length; i++) {
+        const [r, c] = ev.activeCoords[i];
+        const rect = getCellRect(r, c);
+        window.kilnAudio.playRouteHop(i);
+        state.starbursts.push({ x: rect.cx, y: rect.cy, radius: 42, alpha: 1.0 });
+        await sleep(85);
       }
-      await sleep(75);
-    }
 
-    // Apply gold, score, and pressure delta
-    state.gold += evalRes.goldGain;
-    state.score += evalRes.totalSurgeDmg * 10 + evalRes.goldGain * 2;
-    state.pressure = Math.max(0, Math.min(100, state.pressure + evalRes.pressureDelta));
+      state.gold += ev.goldGain;
+      state.score += ev.totalBlastDmg * 15 + ev.goldGain * 2;
+      state.pressure = Math.max(0, Math.min(100, state.pressure + ev.pressureDelta));
 
-    // Apply damage to all hit Automata
-    for (const hit of evalRes.enemyHits) {
-      const occ = state.grid[hit.r][hit.c].occupant;
-      if (occ && occ.kind === 'enemy') {
-        occ.hp -= hit.dmg;
-        if (evalRes.recipeCalcination) occ.clamped = false;
-        spawnFloatingText(
-          hit.r,
-          hit.c,
-          `${hit.direct ? '⚡' : '💧'} -${hit.dmg} HP!`,
-          hit.direct ? '#ffb800' : '#00f5ff'
-        );
-        if (occ.hp <= 0) {
-          handleEnemyDefeat(hit.r, hit.c, occ);
-        }
-      }
-    }
-
-    // Cycle consumed reagents on the active route into fresh random reagents & rotated pipes
-    evalRes.activeCoords.forEach(([r, c]) => {
-      const cell = state.grid[r][c];
-      if (cell.occupant && cell.occupant.kind === 'reagent') {
-        cell.occupant.type = randomReagent();
-        if (state.runes[r][c] !== 'omni') {
-          cell.ports = rotatePortsCW(cell.ports);
-        }
-      }
-    });
-
-    await sleep(380);
-    bannerEl.classList.add('hidden');
-
-    // Check if all enemies in this Sector are cleared!
-    const enemiesOnBoard = countEnemiesOnBoard();
-    if (enemiesOnBoard === 0 && state.enemiesRemainingToSpawn === 0) {
-      state.animating = false;
-      recalculateAndSyncUI();
-      onSectorCleared();
-      return;
-    }
-
-    // Surviving Automata act: generate Boiler Heat and shift/march
-    let survivingHeat = 0;
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 4; c++) {
-        const occ = state.grid[r][c].occupant;
-        if (occ && occ.kind === 'enemy') {
-          survivingHeat += occ.heatPerTurn;
-          if (occ.enemyType === 'boss') {
-            // Arch-Horologist shifts a random row!
-            shiftLine(true, r, 1);
+      for (const hit of ev.enemyHits) {
+        const cell = state.grid[hit.r][hit.c];
+        if (cell.kind === 'enemy') {
+          cell.clamped = false;
+          cell.hp -= hit.dmg;
+          addFloatingText(hit.r, hit.c, `💥 -${hit.dmg} HP!`, '#ffd56b');
+          if (cell.hp <= 0) {
+            destroyAutomaton(hit.r, hit.c, cell);
           }
         }
       }
+
+      // Respawn consumed reagents
+      ev.activeCoords.forEach(([r, c]) => {
+        if (state.grid[r][c].kind === 'reagent') {
+          state.grid[r][c] = { kind: 'reagent', type: randomReagentType() };
+        }
+      });
+
+      await sleep(520);
+      state.blastBanner = null;
+    } else {
+      await sleep(250);
     }
 
-    if (survivingHeat > 0) {
-      state.pressure = Math.min(100, state.pressure + survivingHeat);
+    leverBtn.classList.remove('pulled');
+
+    // Check if Depth is cleared!
+    if (countAutomataOnBoard() === 0 && state.automataReserve <= 0) {
+      state.animating = false;
+      syncAllUI();
+      openAlchemistForgeModal();
+      return;
     }
 
-    // Check Boiler Rupture at 100% Pressure
+    // Surviving Automata heat up the boiler
+    let addedHeat = 0;
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        if (state.grid[r][c].kind === 'enemy') {
+          addedHeat += state.grid[r][c].heat;
+        }
+      }
+    }
+    state.pressure = Math.min(100, state.pressure + addedHeat);
+
     if (state.pressure >= 100) {
       state.hull -= 1;
-      state.pressure = 48;
+      state.pressure = 55;
       window.kilnAudio.playAutomatonBlast();
-      spawnFloatingText(1, 1, '💥 BOILER OVERLOAD! -1 HULL!', '#ff2a85');
+      addFloatingText(1, 1, '💥 BOILER OVERHEAT! -1 HULL!', '#ff5959');
       if (state.hull <= 0) {
         state.animating = false;
-        recalculateAndSyncUI();
-        showEndModal(false);
+        syncAllUI();
+        openEndModal(false);
         return;
       }
     }
 
-    // Spawn reinforcement Automaton if reserve remains and fewer than 3 enemies on board
-    if (state.enemiesRemainingToSpawn > 0 && countEnemiesOnBoard() < 3) {
-      const reagentCoords = [];
+    // Spawn reserve Automaton if fewer than 3 on board
+    if (state.automataReserve > 0 && countAutomataOnBoard() < 3) {
+      const openSlots = [];
       for (let r = 0; r < 4; r++) {
         for (let c = 0; c < 4; c++) {
-          if (state.grid[r][c].occupant && state.grid[r][c].occupant.kind === 'reagent') {
-            reagentCoords.push([r, c]);
-          }
+          if (state.grid[r][c].kind === 'reagent') openSlots.push([r, c]);
         }
       }
-      if (reagentCoords.length > 0) {
-        const [sr, sc] = reagentCoords[Math.floor(Math.random() * reagentCoords.length)];
-        state.grid[sr][sc].occupant = createEnemy(state.sectorIndex, false);
-        state.enemiesRemainingToSpawn--;
-        spawnFloatingText(sr, sc, '⚠️ NEW AUTOMATON!', '#ff2a85');
+      if (openSlots.length > 0) {
+        const [sr, sc] = openSlots[Math.floor(Math.random() * openSlots.length)];
+        state.grid[sr][sc] = createAutomaton(state.depthIdx, false);
+        state.automataReserve--;
+        addFloatingText(sr, sc, '⚠️ NEW AUTOMATON!', '#ff5959');
       }
     }
 
-    state.turn += 1;
+    state.turn++;
     state.animating = false;
-    startTurn();
-    if (evalRes.recipeSolarLoop) {
-      state.energy += 1;
-      recalculateAndSyncUI();
-    }
+    startNewTurn();
   }
 
-  function countEnemiesOnBoard() {
-    let count = 0;
+  function countAutomataOnBoard() {
+    let n = 0;
     for (let r = 0; r < 4; r++) {
       for (let c = 0; c < 4; c++) {
-        const occ = state.grid[r][c].occupant;
-        if (occ && occ.kind === 'enemy') count++;
+        if (state.grid[r][c].kind === 'enemy') n++;
       }
     }
-    return count;
+    return n;
   }
 
   function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise(r => setTimeout(r, ms));
   }
 
-  function spawnFloatingText(r, c, text, color) {
-    const pt = gridToScreen(r, c);
-    state.floatingTexts.push({
-      x: pt.x,
-      y: pt.y - 24,
-      text,
-      color,
-      alpha: 1.0,
-      vy: -0.9
-    });
-  }
+  // ============================================================================
+  // UI SYNCHRONIZATION & BOTTOM BRASS CARD DOCK
+  // ============================================================================
+  function syncAllUI() {
+    state.activeCombos = evaluateCombos();
+    const ev = state.activeCombos;
 
-  // Night-Market Shop between Sectors
-  function onSectorCleared() {
-    window.kilnAudio.playRecipeFanfare();
-    if (state.sectorIndex >= SECTORS.length - 1) {
-      showEndModal(true);
-      return;
-    }
+    document.getElementById('sector-badge').textContent = DEPTHS[state.depthIdx].name;
+    document.getElementById('wave-badge').textContent = `AUTOMATA: ${
+      countAutomataOnBoard() + state.automataReserve
+    }`;
+    document.getElementById('hull-badge').textContent = `HULL: ${'♥'.repeat(state.hull)}${'♡'.repeat(
+      Math.max(0, state.maxHull - state.hull)
+    )}`;
 
-    const modal = document.getElementById('shop-modal');
-    document.getElementById('shop-gold-val').textContent = `$${state.gold}`;
+    const apEl = document.getElementById('ap-readout');
+    apEl.textContent = `STEAM AP: ${'●'.repeat(state.ap)}${'○'.repeat(
+      Math.max(0, state.maxAp - state.ap)
+    )} (${state.ap}/${state.maxAp})${state.freeMove ? ' + [🔧 FREE MOVE]' : ''}`;
 
-    // 1. Populate 3 Free Draft Cards
-    const draftRow = document.getElementById('shop-draft-row');
-    draftRow.innerHTML = '';
-    const draftOptions = ['bellows', 'transmute', 'overclock', 'magnet', 'cryo']
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3);
-
-    let drafted = false;
-    draftOptions.forEach(cardId => {
-      const def = CARD_LIBRARY[cardId];
-      const el = document.createElement('div');
-      el.className = 'shop-item';
-      el.innerHTML = `
-        <div class="card-top">
-          <span>${def.icon} ${def.name}</span>
-          <span class="card-cost">FREE DRAFT</span>
-        </div>
-        <div class="card-desc">${def.desc}</div>
-      `;
-      el.addEventListener('click', () => {
-        if (drafted) return;
-        drafted = true;
-        state.deck.push(cardId);
-        el.classList.add('purchased');
-        el.querySelector('.card-cost').textContent = '✓ ADDED TO DECK';
-        window.kilnAudio.playRecipeFanfare();
-      });
-      draftRow.appendChild(el);
-    });
-
-    // 2. Populate Permanent Crucible Floor Runes & Hull Repair
-    const runesRow = document.getElementById('shop-runes-row');
-    runesRow.innerHTML = '';
-    const runeOffers = [
-      {
-        id: '2x',
-        name: '🔷 2X ROUTE NODE RUNE',
-        cost: 100,
-        desc: 'Etches a permanent 2X Damage & Gold multiplier rune onto a random center tile.'
-      },
-      {
-        id: 'omni',
-        name: '╋ OMNI-CONDUIT RUNE',
-        cost: 85,
-        desc: 'Permanently etches an indestructible 4-Way Crossroad Conduit onto a tile.'
-      },
-      {
-        id: 'cryo',
-        name: '❄️ CRYO-VENT RUNE',
-        cost: 90,
-        desc: 'Etches a cooling vent tile that automatically vents -8% Pressure whenever linked.'
-      },
-      {
-        id: 'repair',
-        name: '♥ HULL CORE REPAIR',
-        cost: 110,
-        desc: 'Restore +1 Kiln Hull Integrity (up to 3 max).'
-      }
-    ];
-
-    runeOffers.forEach(offer => {
-      const el = document.createElement('div');
-      el.className = 'shop-item';
-      el.innerHTML = `
-        <div class="card-top">
-          <span>${offer.name}</span>
-          <span class="card-cost">$${offer.cost}</span>
-        </div>
-        <div class="card-desc">${offer.desc}</div>
-      `;
-      el.addEventListener('click', () => {
-        if (el.classList.contains('purchased') || state.gold < offer.cost) return;
-        if (offer.id === 'repair' && state.hull >= state.maxHull) return;
-
-        state.gold -= offer.cost;
-        document.getElementById('shop-gold-val').textContent = `$${state.gold}`;
-        el.classList.add('purchased');
-        el.querySelector('.card-cost').textContent = '✓ ETCHED';
-        window.kilnAudio.playRecipeFanfare();
-
-        if (offer.id === 'repair') {
-          state.hull = Math.min(state.maxHull, state.hull + 1);
-        } else {
-          // Etch onto an un-etched tile (preferring center 2x2 first)
-          const candidates = [
-            [1, 1],
-            [1, 2],
-            [2, 1],
-            [2, 2],
-            [0, 1],
-            [1, 0],
-            [2, 3],
-            [3, 2]
-          ];
-          const target =
-            candidates.find(([r, c]) => !state.runes[r][c]) || [
-              Math.floor(Math.random() * 4),
-              Math.floor(Math.random() * 4)
-            ];
-          state.runes[target[0]][target[1]] = offer.id;
-        }
-        recalculateAndSyncUI();
-      });
-      runesRow.appendChild(el);
-    });
-
-    modal.classList.remove('hidden');
-  }
-
-  function showEndModal(victory) {
-    const modal = document.getElementById('end-modal');
-    document.getElementById('end-title').textContent = victory
-      ? '🏆 GRAND CHRONO-KILN MASTERED!'
-      : '💥 BOILER CORE RUPTURED!';
-    document.getElementById('end-subtitle').textContent = victory
-      ? 'You conquered all 5 Night-Market Sectors at 88 MPH!'
-      : 'The Clockwork Automata overheated the furnace.';
-    document.getElementById('end-stats').innerHTML = `
-      <div>Final Score: <strong class="accent-cyan">${state.score}</strong></div>
-      <div>Sector Reached: <strong class="accent-gold">${SECTORS[state.sectorIndex].name}</strong></div>
-      <div>Gold Forged: <strong class="accent-gold">$${state.gold}</strong></div>
-      <div>Gear-Loop Deck Size: <strong>${state.deck.length} Cards</strong></div>
-    `;
-    modal.classList.remove('hidden');
-  }
-
-  // Synchronize HTML HUD & Card Dock with current game state
-  function recalculateAndSyncUI() {
-    state.activeEval = evaluateBoardRoutes();
-    const ev = state.activeEval;
-
-    document.getElementById('sector-label').textContent = SECTORS[state.sectorIndex].name;
-    document.getElementById('turn-val').textContent = String(state.turn).padStart(2, '0');
-    document.getElementById('hull-val').textContent =
-      '♥'.repeat(state.hull) + '♡'.repeat(Math.max(0, state.maxHull - state.hull));
-    document.getElementById('energy-val').textContent = `${'⚡'.repeat(state.energy)} ${
-      state.energy
-    }/${state.maxEnergy}`;
-    document.getElementById('gold-val').textContent = `$${state.gold}`;
-    document.getElementById('score-val').textContent = String(state.score).padStart(4, '0');
-
-    // Pressure Pill & Zone 88 indicator
-    const pPill = document.getElementById('pressure-pill');
-    const pVal = document.getElementById('pressure-val');
-    const pTag = document.getElementById('pressure-zone-tag');
-    pVal.textContent = `${state.pressure}%`;
-    pPill.classList.remove('zone-88', 'zone-critical');
-
-    if (state.pressure >= 60 && state.pressure <= 88) {
-      pPill.classList.add('zone-88');
-      pTag.textContent = 'ZONE 88 (1.5x!)';
-      pTag.style.background = '#ffb800';
-    } else if (state.pressure > 88) {
-      pPill.classList.add('zone-critical');
-      pTag.textContent = 'CRITICAL (>88%)';
-      pTag.style.background = '#ff2a2a';
+    const previewEl = document.getElementById('preview-text');
+    if (ev.activeCoords.length > 0) {
+      previewEl.innerHTML = `🔥 <strong>READY TO IGNITE:</strong> ${
+        ev.comboLines[0] ? ev.comboLines[0].type : 'ALCHEMICAL COMBO'
+      } (${ev.totalBlastDmg} DMG to ${ev.enemyHits.length} Automata, +${ev.goldGain} Gold, ${
+        ev.pressureDelta >= 0 ? '+' : ''
+      }${ev.pressureDelta}% Pressure)`;
     } else {
-      pTag.textContent = 'STABLE (1.0x)';
-      pTag.style.background = '#00f5ff';
+      previewEl.innerHTML = `⚙️ Click <strong>[SHIFT ROW ➡]</strong> or <strong>[ROTATE ↻]</strong> on the grid to align 3 Reagents or flank an Automaton!`;
     }
 
-    // Telemetry & Recipe Radar
-    document.getElementById('tele-length').textContent = `${ev.activeCoords.length} Tiles`;
-    document.getElementById('tele-dmg').textContent = `${ev.totalSurgeDmg} DMG${
-      state.overclockActive ? ' (2X!)' : ''
-    }`;
-    document.getElementById('tele-targets').textContent = `${ev.enemyHits.length} Hit`;
-    const pDeltaEl = document.getElementById('tele-pressure');
-    pDeltaEl.textContent = `${ev.pressureDelta >= 0 ? '+' : ''}${ev.pressureDelta}%`;
-    pDeltaEl.style.color = ev.pressureDelta <= 0 ? '#00f5ff' : '#ff2a85';
-    document.getElementById('tele-gold').textContent = `+$${ev.goldGain}`;
+    renderBottomBrassCards();
+  }
 
-    document
-      .getElementById('rec-calcination')
-      .classList.toggle('active', ev.recipeCalcination);
-    document.getElementById('rec-solar').classList.toggle('active', ev.recipeSolarLoop);
-    document
-      .getElementById('rec-philosopher')
-      .classList.toggle('active', ev.recipePhilosopher);
+  function renderBottomBrassCards() {
+    const dock = document.getElementById('cards-dock');
+    dock.innerHTML = '';
 
-    const totalEnemiesLeft = countEnemiesOnBoard() + state.enemiesRemainingToSpawn;
-    document.getElementById('enemy-count-badge').textContent = totalEnemiesLeft;
+    const svgIcons = {
+      shift: `
+        <svg width="48" height="38" viewBox="0 0 48 38">
+          <path d="M16 4 L4 11 L16 18 L16 14 L42 14 L42 8 L16 8 Z" fill="#ffd56b" stroke="#000" stroke-width="2.5"/>
+          <path d="M32 20 L44 27 L32 34 L32 30 L6 30 L6 24 L32 24 Z" fill="#dfa239" stroke="#000" stroke-width="2.5"/>
+        </svg>`,
+      rotate: `
+        <svg width="46" height="40" viewBox="0 0 46 40">
+          <path d="M12 20 A11 11 0 1 1 32 26" fill="none" stroke="#ffd56b" stroke-width="6"/>
+          <polygon points="34,16 42,28 26,28" fill="#ffd56b" stroke="#000" stroke-width="2"/>
+        </svg>`,
+      bellows: `
+        <svg width="50" height="38" viewBox="0 0 50 38">
+          <polygon points="8,16 36,6 36,32 8,22" fill="#b86236" stroke="#000" stroke-width="2.5"/>
+          <rect x="36" y="10" width="8" height="18" fill="#ffd56b" stroke="#000" stroke-width="2"/>
+          <rect x="2" y="17" width="7" height="4" fill="#ffd56b" stroke="#000" stroke-width="1.5"/>
+        </svg>`,
+      transmute: `
+        <svg width="46" height="40" viewBox="0 0 46 40">
+          <circle cx="23" cy="20" r="14" fill="none" stroke="#ffd56b" stroke-width="4"/>
+          <polygon points="23,6 35,28 11,28" fill="none" stroke="#ff7700" stroke-width="2.5"/>
+          <circle cx="23" cy="20" r="4" fill="#fff785"/>
+        </svg>`
+    };
 
-    // Render Card Dock
-    const container = document.getElementById('cards-container');
-    container.innerHTML = '';
+    CARD_DEFS.forEach(def => {
+      const canUse =
+        state.ap >= def.cost ||
+        (state.freeMove && (def.id === 'shift' || def.id === 'rotate'));
+      const isSelected = state.selectedCard === def.id;
 
-    // 0. Always include the innate [🔧 FREE NUDGE] card first!
-    const nudgeEl = document.createElement('div');
-    const isNudgeSelected = state.selectedTool === 'free_nudge';
-    nudgeEl.className = `gear-card card-gold ${isNudgeSelected ? 'selected' : ''} ${
-      !state.freeNudgeAvailable ? 'disabled' : ''
-    }`;
-    nudgeEl.innerHTML = `
-      <div class="card-top">
-        <span>🔧 FREE WRENCH</span>
-        <span class="card-cost">0E</span>
-      </div>
-      <div class="card-icon-row">⇄ / ↻</div>
-      <div class="card-desc">${
-        state.freeNudgeAvailable
-          ? 'Free 1x Row/Col Shift OR 2x2 Rotate this turn!'
-          : 'Used this turn'
-      }</div>
-    `;
-    nudgeEl.addEventListener('click', () => {
-      if (!state.freeNudgeAvailable || state.animating) return;
-      state.selectedTool = state.selectedTool === 'free_nudge' ? null : 'free_nudge';
-      window.kilnAudio.playCardTick();
-      recalculateAndSyncUI();
-    });
-    container.appendChild(nudgeEl);
+      const card = document.createElement('div');
+      card.className = `brass-card ${isSelected ? 'selected' : ''} ${!canUse ? 'disabled' : ''}`;
+      const costText =
+        state.freeMove && (def.id === 'shift' || def.id === 'rotate')
+          ? 'FREE'
+          : `${def.cost}AP`;
 
-    // 1..4 Hand Cards
-    state.hand.forEach((slot, idx) => {
-      const def = CARD_LIBRARY[slot.id];
-      const canAfford = !slot.used && state.energy >= def.cost;
-      const isSelected =
-        state.selectedTool &&
-        state.selectedTool.cardIndex === idx &&
-        state.selectedTool.cardId === slot.id;
-
-      const cardEl = document.createElement('div');
-      cardEl.className = `gear-card ${def.colorClass} ${isSelected ? 'selected' : ''} ${
-        !canAfford ? 'disabled' : ''
-      }`;
-      cardEl.innerHTML = `
-        <div class="card-top">
-          <span>${def.name}</span>
-          <span class="card-cost">${slot.used ? 'USED' : `${def.cost}E`}</span>
-        </div>
-        <div class="card-icon-row">${def.icon}</div>
-        <div class="card-desc">${def.desc}</div>
+      card.innerHTML = `
+        <span class="card-badge">${costText}</span>
+        <div class="card-art">${svgIcons[def.id]}</div>
+        <div class="card-title">${def.title.replace('\n', '<br/>')}</div>
       `;
 
-      cardEl.addEventListener('click', () => {
-        if (!canAfford || state.animating) return;
+      card.addEventListener('click', () => {
+        if (!canUse || state.animating) return;
+        state.selectedCard = def.id;
         window.kilnAudio.playCardTick();
-
-        // Instant cards (Overclock 2X, Cryo-Surge) execute immediately on click!
-        if (slot.id === 'overclock') {
-          saveUndoSnapshot();
-          slot.used = true;
-          state.energy -= def.cost;
-          state.overclockActive = true;
-          state.pressure = Math.min(99, state.pressure + 15);
-          spawnFloatingText(1, 1, '🔥 OVERCLOCK 2.0X SURGE!', '#ffb800');
-          window.kilnAudio.playRecipeFanfare();
-          recalculateAndSyncUI();
-          return;
-        }
-        if (slot.id === 'cryo') {
-          saveUndoSnapshot();
-          slot.used = true;
-          state.energy -= def.cost;
-          state.pressure = Math.max(0, state.pressure - 25);
-          window.kilnAudio.playSteamVent();
-          for (let r = 0; r < 4; r++) {
-            for (let c = 0; c < 4; c++) {
-              const occ = state.grid[r][c].occupant;
-              if (occ && occ.kind === 'enemy') {
-                occ.hp -= 3;
-                occ.clamped = false;
-                spawnFloatingText(r, c, '❄️ CRYO -3 HP!', '#00f5ff');
-                if (occ.hp <= 0) handleEnemyDefeat(r, c, occ);
-              }
-            }
-          }
-          recalculateAndSyncUI();
-          return;
-        }
-
-        // Targeted cards toggle selection
-        if (isSelected) {
-          state.selectedTool = null;
-          state.swapFirstTile = null;
-        } else {
-          state.selectedTool = { cardIndex: idx, cardId: slot.id };
-          state.swapFirstTile = null;
-        }
-        recalculateAndSyncUI();
+        syncAllUI();
       });
 
-      container.appendChild(cardEl);
+      dock.appendChild(card);
     });
-
-    // Update Active Tool indicator
-    const toolInd = document.getElementById('selected-tool-indicator');
-    if (state.selectedTool === 'free_nudge') {
-      toolInd.textContent = 'TOOL: 🔧 FREE NUDGE (Click any Arrow [⇄] or 2x2 Hub [↻])';
-    } else if (state.selectedTool && state.selectedTool.cardId) {
-      const def = CARD_LIBRARY[state.selectedTool.cardId];
-      toolInd.textContent = `TOOL: ${def.icon} ${def.name} (Click target on board)`;
-    } else {
-      toolInd.textContent = 'DIRECT CONTROL: Click any Arrow [⇄] or 2x2 Gear Hub [↻]';
-    }
   }
 
-  // Interactive Hit-Testing on the Isometric Canvas
-  function getInteractiveHotspots() {
+  // ============================================================================
+  // INTERACTIVE HIT-TESTING ON THE CANVAS
+  // ============================================================================
+  function getHotspots() {
     const spots = [];
 
-    // 1. 9 Inner 2x2 Rotation Gear Hubs (r = 0..2, c = 0..2)
+    // 1. Left & Right Row Shift Tabs (plus Top & Bottom Col Shift Tabs)
+    for (let i = 0; i < 4; i++) {
+      const rowRect = getCellRect(i, 0);
+      // Left brass tab: [SHIFT ROW ->]
+      spots.push({
+        type: 'shift_row_right',
+        isRow: true,
+        index: i,
+        dir: 1,
+        x: BOARD.x - 106,
+        y: rowRect.cy - 20,
+        w: 96,
+        h: 40
+      });
+
+      // Right edge quick shift left tab
+      spots.push({
+        type: 'shift_row_left',
+        isRow: true,
+        index: i,
+        dir: -1,
+        x: BOARD.x + BOARD.size + 10,
+        y: rowRect.cy - 14,
+        w: 32,
+        h: 28
+      });
+
+      // Top edge column shift down tab
+      const colRect = getCellRect(0, i);
+      spots.push({
+        type: 'shift_col_down',
+        isRow: false,
+        index: i,
+        dir: 1,
+        x: colRect.cx - 16,
+        y: BOARD.y - 34,
+        w: 32,
+        h: 24
+      });
+    }
+
+    // 2. 9 Inner 2x2 Quadrant Rotation Gear Hubs (where 4 tiles meet)
     for (let r = 0; r < 3; r++) {
       for (let c = 0; c < 3; c++) {
-        // Center of the 4 tiles (r,c), (r+1,c), (r,c+1), (r+1,c+1)
-        const p00 = gridToScreen(r, c);
-        const p11 = gridToScreen(r + 1, c + 1);
+        const tl = getCellRect(r, c);
+        const cx = tl.x + BOARD.cell + BOARD.gap / 2;
+        const cy = tl.y + BOARD.cell + BOARD.gap / 2;
         spots.push({
-          type: 'rotate',
+          type: 'rotate_hub',
           r,
           c,
-          x: (p00.x + p11.x) / 2,
-          y: (p00.y + p11.y) / 2,
-          radius: 17
+          x: cx - 15,
+          y: cy - 15,
+          w: 30,
+          h: 30,
+          cx,
+          cy
         });
       }
     }
 
-    // 2. 16 Border Shift Arrows (4 rows x 2 ends + 4 cols x 2 ends)
-    for (let i = 0; i < 4; i++) {
-      // Row i West end (c = -0.75) -> pushes row East (+1)
-      const rw = gridToScreen(i, -0.78);
-      spots.push({
-        type: 'shift',
-        isRow: true,
-        index: i,
-        delta: 1,
-        x: rw.x,
-        y: rw.y,
-        radius: 16,
-        dirAngle: Math.atan2(ISO.th, ISO.tw)
-      });
-      // Row i East end (c = 3.78) -> pushes row West (-1)
-      const re = gridToScreen(i, 3.78);
-      spots.push({
-        type: 'shift',
-        isRow: true,
-        index: i,
-        delta: -1,
-        x: re.x,
-        y: re.y,
-        radius: 16,
-        dirAngle: Math.atan2(-ISO.th, -ISO.tw)
-      });
+    // 3. Iconic Right-Side [ROTATE ↻] Bracket (rotates bottom-right 2x2 quadrant)
+    const brCell = getCellRect(2, 3);
+    spots.push({
+      type: 'rotate_bracket',
+      r: 2,
+      c: 2,
+      x: BOARD.x + BOARD.size + 16,
+      y: brCell.cy - 10,
+      w: 112,
+      h: 72
+    });
 
-      // Col i North end (r = -0.78) -> pushes col South (+1)
-      const cn = gridToScreen(-0.78, i);
-      spots.push({
-        type: 'shift',
-        isRow: false,
-        index: i,
-        delta: 1,
-        x: cn.x,
-        y: cn.y,
-        radius: 16,
-        dirAngle: Math.atan2(ISO.th, -ISO.tw)
-      });
-      // Col i South end (r = 3.78) -> pushes col North (-1)
-      const cs = gridToScreen(3.78, i);
-      spots.push({
-        type: 'shift',
-        isRow: false,
-        index: i,
-        delta: -1,
-        x: cs.x,
-        y: cs.y,
-        radius: 16,
-        dirAngle: Math.atan2(-ISO.th, ISO.tw)
-      });
-    }
-
-    // 3. 16 Tile Centers (r = 0..3, c = 0..3)
+    // 4. All 16 Crucible Tiles
     for (let r = 0; r < 4; r++) {
       for (let c = 0; c < 4; c++) {
-        const pt = gridToScreen(r, c);
+        const rect = getCellRect(r, c);
         spots.push({
           type: 'tile',
           r,
           c,
-          x: pt.x,
-          y: pt.y,
-          radius: 34
+          x: rect.x,
+          y: rect.y,
+          w: rect.w,
+          h: rect.h
         });
       }
     }
@@ -1378,31 +1001,18 @@
     return spots;
   }
 
-  function findHotspotAt(mx, my) {
-    const spots = getInteractiveHotspots();
-    const toolId =
-      state.selectedTool && state.selectedTool.cardId ? state.selectedTool.cardId : null;
-
-    // Prioritize specific hotspot types based on active tool
-    if (toolId === 'transmute' || toolId === 'magnet') {
-      return spots.find(
-        s => s.type === 'tile' && Math.hypot(mx - s.x, my - s.y) <= s.radius
+  function findSpot(mx, my) {
+    const spots = getHotspots();
+    // If TRANSMUTE is selected, prioritize tile clicks
+    if (state.selectedCard === 'transmute') {
+      const tileHit = spots.find(
+        s => s.type === 'tile' && mx >= s.x && mx <= s.x + s.w && my >= s.y && my <= s.y + s.h
       );
-    }
-    if (toolId === 'rotate') {
-      return spots.find(
-        s => s.type === 'rotate' && Math.hypot(mx - s.x, my - s.y) <= s.radius + 6
-      );
-    }
-    if (toolId === 'shift' || toolId === 'bellows') {
-      return spots.find(
-        s => s.type === 'shift' && Math.hypot(mx - s.x, my - s.y) <= s.radius + 6
-      );
+      if (tileHit) return tileHit;
     }
 
-    // Default priority: rotate hubs & shift arrows first, then tiles
     for (const s of spots) {
-      if (Math.hypot(mx - s.x, my - s.y) <= s.radius) {
+      if (mx >= s.x && mx <= s.x + s.w && my >= s.y && my <= s.y + s.h) {
         return s;
       }
     }
@@ -1413,11 +1023,11 @@
     const rect = canvas.getBoundingClientRect();
     const mx = ((e.clientX - rect.left) / rect.width) * canvas.width;
     const my = ((e.clientY - rect.top) / rect.height) * canvas.height;
-    state.hoverTarget = findHotspotAt(mx, my);
+    state.hoverSpot = findSpot(mx, my);
   });
 
   canvas.addEventListener('mouseleave', () => {
-    state.hoverTarget = null;
+    state.hoverSpot = null;
   });
 
   canvas.addEventListener('click', e => {
@@ -1425,708 +1035,812 @@
     const rect = canvas.getBoundingClientRect();
     const mx = ((e.clientX - rect.left) / rect.width) * canvas.width;
     const my = ((e.clientY - rect.top) / rect.height) * canvas.height;
-    const spot = findHotspotAt(mx, my);
+    const spot = findSpot(mx, my);
     if (!spot) return;
 
-    const toolId =
-      state.selectedTool && state.selectedTool.cardId ? state.selectedTool.cardId : null;
-
-    if (spot.type === 'shift') {
-      if (toolId === 'bellows') {
-        tryConsumeForBoardAction('bellows', () => {
-          triggerSteamBellows(spot.isRow, spot.index);
-          return true;
-        });
+    if (
+      spot.type === 'shift_row_right' ||
+      spot.type === 'shift_row_left' ||
+      spot.type === 'shift_col_down'
+    ) {
+      if (state.selectedCard === 'bellows' && spot.isRow) {
+        trySpendMove('bellows', () => fireBellowsOnRow(spot.index));
       } else {
-        tryConsumeForBoardAction('shift', () => {
-          shiftLine(spot.isRow, spot.index, spot.delta);
-          return true;
-        });
+        trySpendMove('shift', () => shiftRowOrCol(spot.isRow, spot.index, spot.dir));
       }
       return;
     }
 
-    if (spot.type === 'rotate') {
-      tryConsumeForBoardAction('rotate', () => {
-        return rotateQuadrant2x2(spot.r, spot.c, !e.shiftKey);
-      });
+    if (spot.type === 'rotate_hub' || spot.type === 'rotate_bracket') {
+      trySpendMove('rotate', () => rotate2x2Quadrant(spot.r, spot.c));
       return;
     }
 
     if (spot.type === 'tile') {
-      if (toolId === 'transmute') {
-        tryConsumeForBoardAction('transmute', () => {
-          triggerTransmuteTile(spot.r, spot.c);
-          return true;
-        });
-      } else if (toolId === 'magnet') {
-        if (!state.swapFirstTile) {
-          state.swapFirstTile = { r: spot.r, c: spot.c };
-          window.kilnAudio.playCardTick();
-        } else if (
-          state.swapFirstTile.r === spot.r &&
-          state.swapFirstTile.c === spot.c
-        ) {
-          state.swapFirstTile = null;
-        } else {
-          const first = state.swapFirstTile;
-          tryConsumeForBoardAction('magnet', () => {
-            const temp = state.grid[first.r][first.c];
-            state.grid[first.r][first.c] = state.grid[spot.r][spot.c];
-            state.grid[spot.r][spot.c] = temp;
-            state.swapFirstTile = null;
-            window.kilnAudio.playRowSlide();
-            return true;
-          });
-        }
+      if (state.selectedCard === 'transmute') {
+        trySpendMove('transmute', () => transmuteSingleTile(spot.r, spot.c));
+      } else if (state.selectedCard === 'bellows') {
+        trySpendMove('bellows', () => fireBellowsOnRow(spot.r));
+      } else if (state.selectedCard === 'rotate') {
+        const rr = Math.min(2, spot.r);
+        const cc = Math.min(2, spot.c);
+        trySpendMove('rotate', () => rotate2x2Quadrant(rr, cc));
       } else {
-        // Clicking a tile directly rotates its nearest 2x2 hub if hovered or cycles its conduit if Transmute is in hand
-        const nr = Math.min(2, spot.r);
-        const nc = Math.min(2, spot.c);
-        tryConsumeForBoardAction('rotate', () => rotateQuadrant2x2(nr, nc, true));
+        trySpendMove('shift', () => shiftRowOrCol(true, spot.r, 1));
       }
     }
   });
 
   // ============================================================================
-  // 2.5D ISOMETRIC NEON NIGHT-MARKET FOUNDRY RENDERER (ROUTE 88 STYLE)
+  // MASTER PICO-8 CLOCKWORK FURNACE SCENE RENDERER
   // ============================================================================
-  function renderScene() {
-    state.time += 0.03;
+  function renderLoop() {
+    state.tick++;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    drawNightMarketBackdrop();
-    drawBoilerPressureTubes();
-    drawIsometricCrucibleFrame();
-    drawIsometricGridTiles();
-    drawShiftArrowsAndRotateHubs();
-    drawParticlesAndFloatingText();
+    drawSubterraneanBrickAndPipes();
+    drawLeftBoilerPressureGauge();
+    drawRightFurnaceHearth();
+    drawGearToothedCrucibleBox();
+    drawCrucibleTilesAndSprites();
+    drawInteractiveShiftAndRotateControls();
+    drawCalcinationBlastEffects();
 
-    requestAnimationFrame(renderScene);
+    requestAnimationFrame(renderLoop);
   }
 
-  function drawNightMarketBackdrop() {
-    // Deep cyber-indigo gradient floor & alley
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    bgGrad.addColorStop(0, '#070612');
-    bgGrad.addColorStop(0.55, '#120f29');
-    bgGrad.addColorStop(1, '#090714');
-    ctx.fillStyle = bgGrad;
+  function drawSubterraneanBrickAndPipes() {
+    // Dark subterranean wall
+    ctx.fillStyle = '#14101c';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Subtle isometric street grid lines on the night-market floor
-    ctx.save();
-    ctx.strokeStyle = 'rgba(0, 245, 255, 0.05)';
-    ctx.lineWidth = 1;
-    for (let i = -8; i <= 12; i++) {
-      ctx.beginPath();
-      ctx.moveTo(ISO.cx + i * 70, 80);
-      ctx.lineTo(ISO.cx + i * 70 - 500, 540);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(ISO.cx + i * 70, 80);
-      ctx.lineTo(ISO.cx + i * 70 + 500, 540);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // Left Neon Storefront Sign: "KILN // 88 ALCHEMY"
-    drawNeonSignBoard(88, 52, 165, 54, '#00f5ff', 'KILN // 88', 'NEON ALCHEMY');
-    // Right Neon Storefront Sign: "AUTOMATON REPAIR"
-    drawNeonSignBoard(668, 52, 165, 54, '#ff2a85', 'GEAR // LOOP', 'AUTOMATA LAB');
-
-    // Overhead cable with glowing swaying Night-Market Paper Lanterns
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 184, 0, 0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(230, 28);
-    ctx.quadraticCurveTo(460, 68, 690, 28);
-    ctx.stroke();
-
-    const lanternXs = [290, 375, 460, 545, 630];
-    lanternXs.forEach((lx, idx) => {
-      const t = (lx - 230) / 460;
-      const ly = 28 + 4 * t * (1 - t) * 40;
-      const sway = Math.sin(state.time * 1.4 + idx) * 2.5;
-
-      // Lantern glow
-      const glow = ctx.createRadialGradient(lx + sway, ly + 14, 2, lx + sway, ly + 14, 26);
-      glow.addColorStop(0, 'rgba(255, 184, 0, 0.85)');
-      glow.addColorStop(1, 'rgba(255, 184, 0, 0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(lx + sway, ly + 14, 26, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Lantern body
-      ctx.fillStyle = '#ffb800';
-      ctx.strokeStyle = '#ff5500';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.ellipse(lx + sway, ly + 14, 9, 12, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    });
-    ctx.restore();
-
-    // Falling neon rain streaks
-    ctx.save();
-    ctx.strokeStyle = 'rgba(0, 245, 255, 0.16)';
-    ctx.lineWidth = 1;
-    state.rainDrops.forEach(drop => {
-      ctx.beginPath();
-      ctx.moveTo(drop.x, drop.y);
-      ctx.lineTo(drop.x - 3, drop.y + drop.len);
-      ctx.stroke();
-      drop.y += drop.speed;
-      drop.x -= 0.7;
-      if (drop.y > canvas.height) {
-        drop.y = -20;
-        drop.x = Math.random() * canvas.width;
+    // Subtle dark brick blocks
+    ctx.fillStyle = '#1c1626';
+    for (let y = 20; y < canvas.height; y += 36) {
+      for (let x = (y % 72 === 0 ? 0 : 32); x < canvas.width; x += 68) {
+        ctx.fillRect(x, y, 60, 28);
       }
-    });
-    ctx.restore();
+    }
+
+    // Left vertical copper pipe behind shift tabs
+    drawCopperPipe(152, 0, 28, 300, true);
+    drawCopperPipe(0, 280, 175, 26, false);
+
+    // Right copper pipe assembly feeding the hearth
+    drawCopperPipe(630, 68, 170, 24, false);
+    drawCopperPipe(796, 0, 38, 285, true);
+    drawCopperPipe(630, 176, 170, 26, false);
   }
 
-  function drawNeonSignBoard(x, y, w, h, color, line1, line2) {
+  function drawCopperPipe(x, y, w, h, vertical) {
     ctx.save();
-    ctx.fillStyle = 'rgba(10, 10, 26, 0.88)';
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 14;
-    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+    ctx.fillStyle = '#7a3b1e';
     ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#b86236';
+    if (vertical) {
+      ctx.fillRect(x + 4, y, w - 10, h);
+      ctx.fillStyle = '#e08d58';
+      ctx.fillRect(x + 8, y, 5, h);
+    } else {
+      ctx.fillRect(x, y + 4, w, h - 10);
+      ctx.fillStyle = '#e08d58';
+      ctx.fillRect(x, y + 7, w, 4);
+    }
+    ctx.restore();
+  }
 
-    ctx.font = 'bold 13px "Chakra Petch", sans-serif';
-    ctx.fillStyle = color;
+  function drawLeftBoilerPressureGauge() {
+    ctx.save();
+    // Top-left pixel readout: "PRESSURE: 75%"
+    ctx.font = '13px "Press Start 2P", monospace';
+    ctx.fillStyle = '#000000';
     ctx.textAlign = 'center';
-    ctx.fillText(line1, x + w / 2, y + 23);
+    ctx.fillText('PRESSURE:', 78, 36);
+    ctx.fillStyle = '#ffd56b';
+    ctx.fillText('PRESSURE:', 76, 34);
 
-    ctx.font = 'bold 11px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(line2, x + w / 2, y + 41);
-    ctx.restore();
-  }
+    const pColor =
+      state.pressure > 85 ? '#ff5959' : state.pressure >= 60 ? '#fff785' : '#ffd56b';
+    ctx.fillStyle = '#000000';
+    ctx.fillText(`${state.pressure}%`, 78, 58);
+    ctx.fillStyle = pColor;
+    ctx.fillText(`${state.pressure}%`, 76, 56);
 
-  function drawBoilerPressureTubes() {
-    const inZone88 = state.pressure >= 60 && state.pressure <= 88;
-    const isCrit = state.pressure > 88;
-    const tubeColor = isCrit ? '#ff2a2a' : inZone88 ? '#ffb800' : '#00f5ff';
-
-    [38, 882].forEach((tx, idx) => {
-      ctx.save();
-      const topY = 125;
-      const tubeH = 290;
-      const tubeW = 28;
-      const leftX = tx - tubeW / 2;
-
-      // Brass caps
-      ctx.fillStyle = '#b8860b';
-      ctx.fillRect(leftX - 4, topY - 10, tubeW + 8, 10);
-      ctx.fillRect(leftX - 4, topY + tubeH, tubeW + 8, 12);
-
-      // Glass cylinder
-      ctx.fillStyle = 'rgba(8, 12, 26, 0.85)';
-      ctx.strokeStyle = 'rgba(0, 245, 255, 0.45)';
-      ctx.lineWidth = 2;
-      ctx.fillRect(leftX, topY, tubeW, tubeH);
-      ctx.strokeRect(leftX, topY, tubeW, tubeH);
-
-      // Zone 88 Sweet Spot bracket (60% to 88% height)
-      const y88 = topY + tubeH * (1 - 0.88);
-      const y60 = topY + tubeH * (1 - 0.6);
-      ctx.fillStyle = 'rgba(255, 184, 0, 0.16)';
-      ctx.fillRect(leftX + 2, y88, tubeW - 4, y60 - y88);
-      ctx.strokeStyle = '#ffb800';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(leftX, y88);
-      ctx.lineTo(leftX + tubeW, y88);
-      ctx.moveTo(leftX, y60);
-      ctx.lineTo(leftX + tubeW, y60);
-      ctx.stroke();
-
-      // Liquid fill level
-      const fillH = Math.max(4, (state.pressure / 100) * tubeH);
-      const fillY = topY + tubeH - fillH;
-      ctx.fillStyle = tubeColor;
-      ctx.shadowColor = tubeColor;
-      ctx.shadowBlur = 15;
-      ctx.fillRect(leftX + 4, fillY, tubeW - 8, fillH);
-
-      // Steam puff at top of tube
-      const puffR = 10 + Math.sin(state.time * 3 + idx) * 3;
-      ctx.fillStyle = 'rgba(0, 245, 255, 0.35)';
-      ctx.beginPath();
-      ctx.arc(tx, topY - 22, puffR, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Vertical label
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#cbd8f0';
-      ctx.font = 'bold 10px "JetBrains Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${state.pressure}%`, tx, topY + tubeH + 26);
-      ctx.restore();
-    });
-  }
-
-  function drawIsometricCrucibleFrame() {
-    ctx.save();
-    // Outer isometric diamond platform around the 4x4 grid
-    const top = gridToScreen(-0.55, -0.55);
-    const right = gridToScreen(-0.55, 3.55);
-    const bottom = gridToScreen(3.55, 3.55);
-    const left = gridToScreen(3.55, -0.55);
-
-    // 3D base rim
-    ctx.fillStyle = '#121024';
-    ctx.strokeStyle = '#ffb800';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(top.x, top.y - 12);
-    ctx.lineTo(right.x + 18, right.y);
-    ctx.lineTo(bottom.x, bottom.y + 22);
-    ctx.lineTo(left.x - 18, left.y);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Inner glowing cyan circuit border
-    ctx.strokeStyle = 'rgba(0, 245, 255, 0.7)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(top.x, top.y - 6);
-    ctx.lineTo(right.x + 10, right.y);
-    ctx.lineTo(bottom.x, bottom.y + 14);
-    ctx.lineTo(left.x - 10, left.y);
-    ctx.closePath();
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawIsometricGridTiles() {
-    const ev = state.activeEval || evaluateBoardRoutes();
-
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 4; c++) {
-        const pt = gridToScreen(r, c);
-        const cell = state.grid[r][c];
-        const isActiveRoute = ev.activeSet.has(`${r},${c}`);
-        const rune = state.runes[r][c];
-
-        // Check if tile is highlighted by hover on a row/col shift or 2x2 rotate hub
-        let isHoveredGroup = false;
-        if (state.hoverTarget) {
-          if (state.hoverTarget.type === 'shift') {
-            if (state.hoverTarget.isRow && state.hoverTarget.index === r) isHoveredGroup = true;
-            if (!state.hoverTarget.isRow && state.hoverTarget.index === c) isHoveredGroup = true;
-          } else if (state.hoverTarget.type === 'rotate') {
-            if (
-              (r === state.hoverTarget.r || r === state.hoverTarget.r + 1) &&
-              (c === state.hoverTarget.c || c === state.hoverTarget.c + 1)
-            ) {
-              isHoveredGroup = true;
-            }
-          } else if (
-            state.hoverTarget.type === 'tile' &&
-            state.hoverTarget.r === r &&
-            state.hoverTarget.c === c
-          ) {
-            isHoveredGroup = true;
-          }
-        }
-        if (
-          state.swapFirstTile &&
-          state.swapFirstTile.r === r &&
-          state.swapFirstTile.c === c
-        ) {
-          isHoveredGroup = true;
-        }
-
-        const w = ISO.tw - 4;
-        const h = ISO.th - 2;
-
-        // 1. Draw 3D Isometric Tile Side Extrusion
-        ctx.save();
-        ctx.fillStyle = isActiveRoute ? '#10344a' : '#141328';
-        ctx.beginPath();
-        ctx.moveTo(pt.x - w, pt.y);
-        ctx.lineTo(pt.x, pt.y + h);
-        ctx.lineTo(pt.x + w, pt.y);
-        ctx.lineTo(pt.x + w, pt.y + ISO.depth);
-        ctx.lineTo(pt.x, pt.y + h + ISO.depth);
-        ctx.lineTo(pt.x - w, pt.y + ISO.depth);
-        ctx.closePath();
-        ctx.fill();
-
-        // 2. Draw Isometric Top Surface
-        ctx.fillStyle = isHoveredGroup
-          ? 'rgba(255, 184, 0, 0.28)'
-          : isActiveRoute
-          ? 'rgba(0, 245, 255, 0.16)'
-          : '#1c1b36';
-        ctx.strokeStyle = isHoveredGroup
-          ? '#ffb800'
-          : isActiveRoute
-          ? '#00f5ff'
-          : 'rgba(138, 153, 184, 0.4)';
-        ctx.lineWidth = isActiveRoute || isHoveredGroup ? 2 : 1.2;
-
-        ctx.beginPath();
-        ctx.moveTo(pt.x, pt.y - h);
-        ctx.lineTo(pt.x + w, pt.y);
-        ctx.lineTo(pt.x, pt.y + h);
-        ctx.lineTo(pt.x - w, pt.y);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // 3. Draw Permanent Floor Rune Badge if present
-        if (rune) {
-          ctx.font = 'bold 10px "JetBrains Mono", monospace';
-          ctx.fillStyle = '#00f5ff';
-          ctx.textAlign = 'center';
-          const label =
-            rune === '2x' ? '2X NODE' : rune === 'cryo' ? 'CRYO' : rune === 'gold' ? '+$35' : 'OMNI';
-          ctx.fillText(label, pt.x, pt.y + h - 8);
-        }
-
-        // 4. Draw Glowing Conduit Tracks on the Tile Surface
-        // Edge midpoints for N, E, S, W on the isometric diamond:
-        const edgeMidpoints = [
-          { x: pt.x - w * 0.5, y: pt.y - h * 0.5 }, // 0: N (Up-Left)
-          { x: pt.x + w * 0.5, y: pt.y - h * 0.5 }, // 1: E (Up-Right)
-          { x: pt.x + w * 0.5, y: pt.y + h * 0.5 }, // 2: S (Down-Right)
-          { x: pt.x - w * 0.5, y: pt.y + h * 0.5 }  // 3: W (Down-Left)
-        ];
-
-        cell.ports.forEach((open, dirIdx) => {
-          if (!open) return;
-          const mid = edgeMidpoints[dirIdx];
-
-          // Outer glow line
-          ctx.strokeStyle = isActiveRoute ? '#00f5ff' : 'rgba(255, 42, 133, 0.55)';
-          ctx.lineWidth = isActiveRoute ? 6 : 3.5;
-          ctx.lineCap = 'round';
-          if (isActiveRoute) {
-            ctx.shadowColor = '#00f5ff';
-            ctx.shadowBlur = 12;
-          }
-          ctx.beginPath();
-          ctx.moveTo(pt.x, pt.y);
-          ctx.lineTo(mid.x, mid.y);
-          ctx.stroke();
-
-          // Bright core line
-          ctx.shadowBlur = 0;
-          ctx.strokeStyle = isActiveRoute ? '#ffffff' : '#ff7ab8';
-          ctx.lineWidth = isActiveRoute ? 2.2 : 1.2;
-          ctx.beginPath();
-          ctx.moveTo(pt.x, pt.y);
-          ctx.lineTo(mid.x, mid.y);
-          ctx.stroke();
-        });
-
-        // Center node hub
-        ctx.fillStyle = isActiveRoute ? '#00f5ff' : '#ffb800';
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        // 5. Draw Surface Occupant (Reagent Crystal/Flask or Clockwork Automaton)
-        if (cell.occupant) {
-          drawOccupantSprite(pt.x, pt.y, r, c, cell.occupant, isActiveRoute, ev);
-        }
-      }
-    }
-  }
-
-  function drawOccupantSprite(x, y, r, c, occ, isActiveRoute, ev) {
-    ctx.save();
-    const bob = Math.sin(state.time * 2.2 + r + c) * 2.2;
-
-    if (occ.kind === 'reagent') {
-      if (occ.type === 'sulfur') {
-        // Golden Sulfur Crystal Cluster
-        ctx.fillStyle = '#ffb800';
-        ctx.strokeStyle = '#fff3b0';
-        ctx.lineWidth = 1.5;
-        ctx.shadowColor = '#ffb800';
-        ctx.shadowBlur = isActiveRoute ? 16 : 8;
-
-        // Center crystal spire
-        ctx.beginPath();
-        ctx.moveTo(x, y - 26 + bob);
-        ctx.lineTo(x + 9, y - 8 + bob);
-        ctx.lineTo(x, y - 2 + bob);
-        ctx.lineTo(x - 9, y - 8 + bob);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Side crystal shard
-        ctx.beginPath();
-        ctx.moveTo(x - 12, y - 18 + bob);
-        ctx.lineTo(x - 4, y - 6 + bob);
-        ctx.lineTo(x - 10, y - 3 + bob);
-        ctx.closePath();
-        ctx.fill();
-      } else if (occ.type === 'mercury') {
-        // Electric Cyan Alchemical Bulb Flask
-        ctx.shadowColor = '#00f5ff';
-        ctx.shadowBlur = isActiveRoute ? 16 : 8;
-        ctx.fillStyle = 'rgba(0, 245, 255, 0.85)';
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5;
-
-        ctx.beginPath();
-        ctx.arc(x, y - 10 + bob, 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Flask neck & cork
-        ctx.fillStyle = '#d0f8ff';
-        ctx.fillRect(x - 3, y - 24 + bob, 6, 6);
-        ctx.fillStyle = '#b87333';
-        ctx.fillRect(x - 3, y - 27 + bob, 6, 3);
-      } else if (occ.type === 'cinder') {
-        // Neon Magenta & Orange Cinder Flame Core
-        ctx.shadowColor = '#ff2a85';
-        ctx.shadowBlur = isActiveRoute ? 18 : 10;
-        ctx.fillStyle = '#ff2a85';
-        ctx.beginPath();
-        ctx.moveTo(x, y - 28 + bob);
-        ctx.quadraticCurveTo(x + 14, y - 12 + bob, x, y - 2 + bob);
-        ctx.quadraticCurveTo(x - 14, y - 12 + bob, x, y - 28 + bob);
-        ctx.fill();
-
-        ctx.fillStyle = '#ffb800';
-        ctx.beginPath();
-        ctx.arc(x, y - 10 + bob, 5.5, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (occ.type === 'salt') {
-        // Prismatic White Salt Octahedron
-        ctx.shadowColor = '#ffffff';
-        ctx.shadowBlur = 14;
-        ctx.fillStyle = '#eef8ff';
-        ctx.strokeStyle = '#00f5ff';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x, y - 26 + bob);
-        ctx.lineTo(x + 11, y - 13 + bob);
-        ctx.lineTo(x, y - 1 + bob);
-        ctx.lineTo(x - 11, y - 13 + bob);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-    } else if (occ.kind === 'enemy') {
-      // Clockwork Automaton Sprite
-      const isBoss = occ.enemyType === 'boss';
-      const bodyColor = isBoss
-        ? '#ffb800'
-        : occ.enemyType === 'golem'
-        ? '#90a4ae'
-        : occ.enemyType === 'bomber'
-        ? '#ff2a85'
-        : '#cd7f32';
-
-      ctx.shadowColor = '#ff2a85';
-      ctx.shadowBlur = 12;
-
-      // Robot Torso / Head
-      const bw = isBoss ? 28 : 22;
-      const bh = isBoss ? 26 : 20;
-      ctx.fillStyle = bodyColor;
-      ctx.strokeStyle = '#111';
-      ctx.lineWidth = 2;
-      ctx.fillRect(x - bw / 2, y - bh - 4 + bob, bw, bh);
-      ctx.strokeRect(x - bw / 2, y - bh - 4 + bob, bw, bh);
-
-      // Glowing Eyes
-      ctx.fillStyle = '#00f5ff';
-      ctx.fillRect(x - 6, y - bh + 3 + bob, 4, 4);
-      ctx.fillRect(x + 2, y - bh + 3 + bob, 4, 4);
-
-      // Clamp badge if Clamp-Golem
-      if (occ.clamped) {
-        ctx.font = 'bold 11px "JetBrains Mono", monospace';
-        ctx.fillStyle = '#ff2a85';
-        ctx.textAlign = 'center';
-        ctx.fillText('🔒CLAMP', x, y + 11);
-      }
-
-      // HP Bar above Automaton
-      const barW = 36;
-      const barH = 6;
-      const barY = y - bh - 15 + bob;
-      ctx.fillStyle = 'rgba(0,0,0,0.85)';
-      ctx.fillRect(x - barW / 2, barY, barW, barH);
-      const hpRatio = Math.max(0, occ.hp / occ.maxHp);
-      ctx.fillStyle = hpRatio > 0.5 ? '#00ff9d' : '#ff2a85';
-      ctx.fillRect(x - barW / 2 + 1, barY + 1, (barW - 2) * hpRatio, barH - 2);
-
-      ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    // Animated pixelated white steam puffs rising from boiler nozzle
+    state.steamPuffs.forEach(p => {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(p.x - p.r - 2, p.y - p.r - 2, p.r * 2 + 4, p.r * 2 + 4);
+      ctx.fillStyle = '#d3dff5';
+      ctx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
       ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${occ.hp}HP`, x, barY - 3);
-
-      // Check if targeted by current route preview
-      const hitInfo = ev.enemyHits.find(h => h.r === r && h.c === c);
-      if (hitInfo) {
-        const isKill = hitInfo.dmg >= occ.hp;
-        ctx.fillStyle = isKill ? '#ffb800' : '#00f5ff';
-        ctx.font = 'bold 11px "JetBrains Mono", monospace';
-        ctx.fillText(
-          isKill ? `⚡KILL (-${hitInfo.dmg})` : `-${hitInfo.dmg} DMG`,
-          x,
-          barY - 14
-        );
-      }
-    }
-
-    ctx.restore();
-  }
-
-  function drawShiftArrowsAndRotateHubs() {
-    const spots = getInteractiveHotspots();
-
-    spots.forEach(spot => {
-      const isHovered =
-        state.hoverTarget &&
-        state.hoverTarget.type === spot.type &&
-        state.hoverTarget.x === spot.x &&
-        state.hoverTarget.y === spot.y;
-
-      if (spot.type === 'rotate') {
-        // 2x2 Quadrant Rotation Hub Gear
-        ctx.save();
-        ctx.translate(spot.x, spot.y);
-        ctx.rotate(isHovered ? state.time * 2 : 0);
-
-        ctx.fillStyle = isHovered ? '#ffb800' : 'rgba(16, 20, 38, 0.9)';
-        ctx.strokeStyle = isHovered ? '#ffffff' : '#ffb800';
-        ctx.lineWidth = isHovered ? 2.2 : 1.5;
-        if (isHovered) {
-          ctx.shadowColor = '#ffb800';
-          ctx.shadowBlur = 12;
-        }
-
-        ctx.beginPath();
-        ctx.arc(0, 0, isHovered ? 13 : 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.font = 'bold 11px "JetBrains Mono", monospace';
-        ctx.fillStyle = isHovered ? '#090814' : '#ffb800';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('↻', 0, 0.5);
-        ctx.restore();
-      } else if (spot.type === 'shift') {
-        // Border Row/Col Shift Button
-        ctx.save();
-        ctx.translate(spot.x, spot.y);
-
-        const isBellows =
-          state.selectedTool && state.selectedTool.cardId === 'bellows';
-        const color = isBellows ? '#ffb800' : '#00f5ff';
-
-        ctx.fillStyle = isHovered ? color : 'rgba(12, 16, 34, 0.88)';
-        ctx.strokeStyle = color;
-        ctx.lineWidth = isHovered ? 2.2 : 1.4;
-        if (isHovered) {
-          ctx.shadowColor = color;
-          ctx.shadowBlur = 12;
-        }
-
-        ctx.beginPath();
-        ctx.arc(0, 0, isHovered ? 14 : 11, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.rotate(spot.dirAngle);
-        ctx.fillStyle = isHovered ? '#070610' : color;
-        ctx.beginPath();
-        ctx.moveTo(5, 0);
-        ctx.lineTo(-4, -4.5);
-        ctx.lineTo(-4, 4.5);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-      }
-    });
-  }
-
-  function drawParticlesAndFloatingText() {
-    // Surge particles
-    for (let i = state.surgeParticles.length - 1; i >= 0; i--) {
-      const p = state.surgeParticles[i];
-      ctx.save();
-      ctx.globalAlpha = p.life;
-      ctx.fillStyle = p.color;
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      ctx.fillRect(p.x - p.r + 2, p.y - p.r + 2, p.r * 2 - 6, p.r * 2 - 6);
 
       p.x += p.vx;
       p.y += p.vy;
-      p.life -= 0.04;
-      if (p.life <= 0) state.surgeParticles.splice(i, 1);
+      if (p.y < 68) {
+        p.x = 72 + (Math.random() - 0.5) * 10;
+        p.y = 118;
+      }
+    });
+
+    // Brass Boiler Tank Cylinder (x=42, y=132, w=58, h=208)
+    const bx = 42;
+    const by = 132;
+    const bw = 58;
+    const bh = 208;
+
+    // Top steam nozzle
+    ctx.fillStyle = '#000';
+    ctx.fillRect(bx + 20, by - 14, 18, 14);
+    ctx.fillStyle = '#dfa239';
+    ctx.fillRect(bx + 23, by - 11, 12, 11);
+
+    // Outer black outline & brass caps
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(bx - 4, by - 4, bw + 8, bh + 8);
+    ctx.fillStyle = '#8f5716';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = '#dfa239';
+    ctx.fillRect(bx + 4, by, bw - 8, 16);
+    ctx.fillRect(bx + 4, by + bh - 16, bw - 8, 16);
+
+    // Inner glass chamber
+    const gx = bx + 8;
+    const gy = by + 18;
+    const gw = bw - 16;
+    const gh = bh - 36;
+    ctx.fillStyle = '#2d1e2f';
+    ctx.fillRect(gx, gy, gw, gh);
+
+    // Liquid fill inside boiler
+    const fillH = Math.round((state.pressure / 100) * gh);
+    const fillY = gy + gh - fillH;
+    ctx.fillStyle = state.pressure > 85 ? '#ff3b2f' : '#ffe042';
+    ctx.fillRect(gx + 2, fillY, gw - 4, fillH);
+    // Specular highlight strip on liquid
+    ctx.fillStyle = '#fffb9e';
+    ctx.fillRect(gx + 6, fillY, 10, fillH);
+
+    // Sweet spot tick marks (60% - 85%)
+    const y85 = gy + gh * 0.15;
+    const y60 = gy + gh * 0.4;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(bx - 6, y85, 8, 3);
+    ctx.fillRect(bx - 6, y60, 8, 3);
+
+    // Side brass sight pipe (matching original graphic)
+    ctx.fillStyle = '#000';
+    ctx.fillRect(bx + bw + 4, by + 26, 12, bh - 52);
+    ctx.fillStyle = '#dfa239';
+    ctx.fillRect(bx + bw + 7, by + 29, 6, bh - 58);
+
+    // Bottom-Left Riveted Gold Coin Box ([🪙 120])
+    const cx = 22;
+    const cy = 382;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(cx - 3, cy - 3, 98, 46);
+    ctx.fillStyle = '#282d3c';
+    ctx.fillRect(cx, cy, 92, 40);
+    ctx.strokeStyle = '#565f78';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx + 2, cy + 2, 88, 36);
+
+    // Pixel Gold Coin Icon
+    ctx.fillStyle = '#000';
+    ctx.fillRect(cx + 10, cy + 8, 24, 24);
+    ctx.fillStyle = '#ffd56b';
+    ctx.fillRect(cx + 12, cy + 10, 20, 20);
+    ctx.fillStyle = '#b87d24';
+    ctx.fillRect(cx + 17, cy + 15, 10, 10);
+
+    ctx.font = '13px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ffd56b';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${state.gold}`, cx + 40, cy + 27);
+    ctx.restore();
+  }
+
+  function drawRightFurnaceHearth() {
+    ctx.save();
+    // Copper bell hood above hearth
+    const hx = 772;
+    const hy = 248;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(hx - 18, hy, 82, 42);
+    ctx.fillStyle = '#9e522c';
+    ctx.fillRect(hx - 14, hy + 4, 74, 34);
+    ctx.fillStyle = '#dfa239';
+    ctx.fillRect(hx - 18, hy + 30, 82, 8);
+
+    // Flickering pixel flames inside hearth
+    const flameFlicker = (state.tick % 16 < 8) ? 0 : 4;
+    ctx.fillStyle = '#ff5500';
+    ctx.fillRect(782, 326 - flameFlicker, 76, 38 + flameFlicker);
+    ctx.fillStyle = '#ffaa00';
+    ctx.fillRect(792, 334, 56, 30);
+    ctx.fillStyle = '#fff785';
+    ctx.fillRect(804, 344, 34, 20);
+
+    // Brick furnace base at bottom right
+    ctx.fillStyle = '#000';
+    ctx.fillRect(752, 362, 136, 110);
+    ctx.fillStyle = '#5c3124';
+    ctx.fillRect(756, 366, 128, 102);
+    ctx.fillStyle = '#7d4432';
+    ctx.fillRect(760, 366, 120, 12);
+    ctx.restore();
+  }
+
+  function drawGearToothedCrucibleBox() {
+    ctx.save();
+    const gx = BOARD.x - 16;
+    const gy = BOARD.y - 16;
+    const gw = BOARD.size + 32;
+    const gh = BOARD.size + 32;
+
+    // Draw 7 chunky interlocking brass gear teeth along each of the 4 sides!
+    const toothCount = 7;
+    const toothW = 28;
+    const toothD = 16;
+    const step = gw / (toothCount + 1);
+
+    for (let i = 1; i <= toothCount; i++) {
+      const offset = Math.round(i * step - toothW / 2);
+
+      // Top gear tooth
+      drawBrassBlock(gx + offset, gy - toothD + 2, toothW, toothD);
+      // Bottom gear tooth
+      drawBrassBlock(gx + offset, gy + gh - 2, toothW, toothD);
+      // Left gear tooth
+      drawBrassBlock(gx - toothD + 2, gy + offset, toothD, toothW);
+      // Right gear tooth
+      drawBrassBlock(gx + gw - 2, gy + offset, toothD, toothW);
     }
 
-    // Steam puffs
-    for (let i = state.steamPuffs.length - 1; i >= 0; i--) {
-      const s = state.steamPuffs[i];
-      ctx.save();
-      ctx.globalAlpha = s.alpha;
-      ctx.fillStyle = 'rgba(0, 245, 255, 0.45)';
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+    // Outer Golden Brass Frame
+    drawBrassBlock(gx, gy, gw, gh);
 
-      s.x += s.vx;
-      s.y += s.vy;
-      s.radius += 0.4;
-      s.alpha -= 0.03;
-      if (s.alpha <= 0) state.steamPuffs.splice(i, 1);
+    // Inner Riveted Dark-Iron Crucible Bezel
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(BOARD.x - 4, BOARD.y - 4, BOARD.size + 8, BOARD.size + 8);
+    ctx.fillStyle = '#3a4154';
+    ctx.fillRect(BOARD.x, BOARD.y, BOARD.size, BOARD.size);
+
+    // Corner & border rivets on iron bezel
+    ctx.fillStyle = '#181b24';
+    for (let i = 0; i <= 4; i++) {
+      const rx = BOARD.x + 4 + i * 89;
+      ctx.fillRect(rx, BOARD.y + 2, 4, 4);
+      ctx.fillRect(rx, BOARD.y + BOARD.size - 6, 4, 4);
+    }
+    ctx.restore();
+  }
+
+  function drawBrassBlock(x, y, w, h) {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+    ctx.fillStyle = '#8f5716';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#dfa239';
+    ctx.fillRect(x + 3, y + 3, w - 6, h - 6);
+    ctx.fillStyle = '#ffd56b';
+    ctx.fillRect(x + 3, y + 3, w - 9, 4);
+  }
+
+  function drawCrucibleTilesAndSprites() {
+    const ev = state.activeCombos || evaluateCombos();
+
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        const rect = getCellRect(r, c);
+        const cell = state.grid[r][c];
+        const isMatched = ev.matchedCells.has(`${r},${c}`);
+        const rune = state.runes[r][c];
+
+        // Check if hovered by a Shift Tab or 2x2 Rotate Hub
+        let isHovered = false;
+        if (state.hoverSpot) {
+          const hs = state.hoverSpot;
+          if (
+            (hs.type === 'shift_row_right' || hs.type === 'shift_row_left') &&
+            hs.index === r
+          ) {
+            isHovered = true;
+          } else if (hs.type === 'shift_col_down' && hs.index === c) {
+            isHovered = true;
+          } else if (
+            (hs.type === 'rotate_hub' || hs.type === 'rotate_bracket') &&
+            (r === hs.r || r === hs.r + 1) &&
+            (c === hs.c || c === hs.c + 1)
+          ) {
+            isHovered = true;
+          } else if (hs.type === 'tile' && hs.r === r && hs.c === c) {
+            isHovered = true;
+          }
+        }
+
+        // 1. Draw Square Riveted Iron Plate
+        ctx.save();
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4);
+
+        ctx.fillStyle = isMatched
+          ? '#634318'
+          : isHovered
+          ? '#3b374f'
+          : '#262b38';
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+
+        // Inner bevel border
+        ctx.strokeStyle = isMatched
+          ? '#ffd56b'
+          : isHovered
+          ? '#dfa239'
+          : '#49526b';
+        ctx.lineWidth = isMatched ? 3 : 2;
+        ctx.strokeRect(rect.x + 2, rect.y + 2, rect.w - 4, rect.h - 4);
+
+        // 4 Corner Rivets on each tile plate
+        ctx.fillStyle = '#141720';
+        ctx.fillRect(rect.x + 5, rect.y + 5, 3, 3);
+        ctx.fillRect(rect.x + rect.w - 8, rect.y + 5, 3, 3);
+        ctx.fillRect(rect.x + 5, rect.y + rect.h - 8, 3, 3);
+        ctx.fillRect(rect.x + rect.w - 8, rect.y + rect.h - 8, 3, 3);
+
+        // Etched Rune indicator if present
+        if (rune) {
+          ctx.font = '8px "Press Start 2P", monospace';
+          ctx.fillStyle = '#ffd56b';
+          ctx.textAlign = 'center';
+          ctx.fillText(
+            rune === '2x' ? '2X RUNE' : rune === 'vent' ? 'COOL' : '+GOLD',
+            rect.cx,
+            rect.y + 15
+          );
+        }
+        ctx.restore();
+
+        // 2. Draw Pixel Art Sprite (Reagent or Automaton)
+        if (cell.kind === 'reagent') {
+          drawPixelSprite(cell.type, rect.cx, rect.cy + 2, 4);
+        } else if (cell.kind === 'enemy') {
+          drawPixelSprite(cell.type, rect.cx, rect.cy, 4);
+
+          // HP Bar & Clamped badge on Automaton
+          ctx.save();
+          ctx.fillStyle = '#000';
+          ctx.fillRect(rect.x + 10, rect.y + rect.h - 14, rect.w - 20, 10);
+          const ratio = Math.max(0, cell.hp / cell.maxHp);
+          ctx.fillStyle = ratio > 0.5 ? '#ff9d2e' : '#ff3b2f';
+          ctx.fillRect(
+            rect.x + 12,
+            rect.y + rect.h - 12,
+            Math.round((rect.w - 24) * ratio),
+            6
+          );
+
+          ctx.font = '8px "Press Start 2P", monospace';
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${cell.hp}HP`, rect.cx, rect.y + 13);
+
+          // Show projected kill/damage badge if combo hits this Automaton
+          const hit = ev.enemyHits.find(h => h.r === r && h.c === c);
+          if (hit) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(rect.x + 4, rect.y - 4, rect.w - 8, 15);
+            ctx.fillStyle = hit.dmg >= cell.hp ? '#fff785' : '#ff9d2e';
+            ctx.fillText(
+              hit.dmg >= cell.hp ? `KILL -${hit.dmg}` : `-${hit.dmg} DMG`,
+              rect.cx,
+              rect.y + 7
+            );
+          }
+          ctx.restore();
+        }
+      }
+    }
+  }
+
+  function drawInteractiveShiftAndRotateControls() {
+    const spots = getHotspots();
+    const hovered = state.hoverSpot;
+
+    // 1. Draw the Left Row Shift Tabs (with the iconic "[SHIFT ROW ➡]" badge on the hovered/active row, default Row 1!)
+    const featuredRow =
+      hovered && (hovered.type === 'shift_row_right' || hovered.type === 'tile')
+        ? hovered.index !== undefined
+          ? hovered.index
+          : hovered.r
+        : 1;
+
+    for (let r = 0; r < 4; r++) {
+      const rowRect = getCellRect(r, 0);
+      const isRowHovered =
+        hovered && hovered.type === 'shift_row_right' && hovered.index === r;
+
+      if (r === featuredRow || isRowHovered) {
+        // Full iconic Brass Tab: [SHIFT ROW ➡]
+        const tx = BOARD.x - 108;
+        const ty = rowRect.cy - 22;
+        const tw = 96;
+        const th = 44;
+        drawBrassBlock(tx, ty, tw, th);
+        ctx.fillStyle = isRowHovered ? '#3d2817' : '#26180d';
+        ctx.fillRect(tx + 4, ty + 4, tw - 8, th - 8);
+
+        ctx.font = '9px "Press Start 2P", monospace';
+        ctx.fillStyle = '#ffd56b';
+        ctx.textAlign = 'left';
+        ctx.fillText('SHIFT', tx + 10, ty + 19);
+        ctx.fillText('ROW', tx + 16, ty + 33);
+
+        // Chunky gold right arrow
+        ctx.fillStyle = '#ffd56b';
+        ctx.beginPath();
+        ctx.moveTo(tx + 66, ty + 18);
+        ctx.lineTo(tx + 78, ty + 18);
+        ctx.lineTo(tx + 78, ty + 12);
+        ctx.lineTo(tx + 88, ty + 22);
+        ctx.lineTo(tx + 78, ty + 32);
+        ctx.lineTo(tx + 78, ty + 26);
+        ctx.lineTo(tx + 66, ty + 26);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        // Compact brass arrow tab on the other 3 rows
+        const tx = BOARD.x - 44;
+        const ty = rowRect.cy - 13;
+        drawBrassBlock(tx, ty, 30, 26);
+        ctx.font = '10px "Press Start 2P", monospace';
+        ctx.fillStyle = '#1a1006';
+        ctx.textAlign = 'center';
+        ctx.fillText('➡', tx + 15, ty + 18);
+      }
+
+      // Top column shift arrows
+      const colRect = getCellRect(0, r);
+      const isColHovered =
+        hovered && hovered.type === 'shift_col_down' && hovered.index === r;
+      if (isColHovered) {
+        drawBrassBlock(colRect.cx - 16, BOARD.y - 36, 32, 22);
+        ctx.font = '10px "Press Start 2P", monospace';
+        ctx.fillStyle = '#1a1006';
+        ctx.textAlign = 'center';
+        ctx.fillText('⬇', colRect.cx, BOARD.y - 21);
+      }
     }
 
-    // Floating combat / gold text
+    // 2. Draw the Iconic Right-Side [ROTATE ↻] Curved Arrows & Badge (matching concept3_chrono_kiln_1794020308789.jpg)
+    const rx = BOARD.x + BOARD.size + 32;
+    const ry = 285;
+    ctx.save();
+    const isBracketHovered = hovered && hovered.type === 'rotate_bracket';
+
+    // Upper curved gold arrow
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.arc(rx + 18, ry - 18, 22, -Math.PI * 0.85, -Math.PI * 0.15);
+    ctx.stroke();
+    ctx.strokeStyle = isBracketHovered ? '#fff785' : '#ffd56b';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(rx + 18, ry - 18, 22, -Math.PI * 0.85, -Math.PI * 0.15);
+    ctx.stroke();
+
+    // Center [ROTATE ↻] pill
+    ctx.fillStyle = '#000';
+    ctx.fillRect(rx - 14, ry - 12, 96, 24);
+    ctx.fillStyle = '#1c140d';
+    ctx.strokeStyle = '#dfa239';
+    ctx.lineWidth = 2;
+    ctx.fillRect(rx - 12, ry - 10, 92, 20);
+    ctx.strokeRect(rx - 12, ry - 10, 92, 20);
+
+    ctx.font = '9px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ffd56b';
+    ctx.textAlign = 'center';
+    ctx.fillText('ROTATE ↻', rx + 34, ry + 4);
+
+    // Lower curved gold arrow
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.arc(rx + 18, ry + 18, 22, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+    ctx.strokeStyle = isBracketHovered ? '#fff785' : '#ffd56b';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(rx + 18, ry + 18, 22, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+    ctx.restore();
+
+    // 3. Draw the 9 Inner 2x2 Quadrant Rotation Gear Hubs
+    spots
+      .filter(s => s.type === 'rotate_hub')
+      .forEach(hub => {
+        const isHubHovered =
+          hovered &&
+          hovered.type === 'rotate_hub' &&
+          hovered.r === hub.r &&
+          hovered.c === hub.c;
+
+        ctx.save();
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(hub.cx, hub.cy, isHubHovered ? 13 : 9, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = isHubHovered ? '#fff785' : '#dfa239';
+        ctx.beginPath();
+        ctx.arc(hub.cx, hub.cy, isHubHovered ? 10 : 6.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (isHubHovered) {
+          ctx.font = '9px "Press Start 2P", monospace';
+          ctx.fillStyle = '#000';
+          ctx.textAlign = 'center';
+          ctx.fillText('↻', hub.cx, hub.cy + 3.5);
+        }
+        ctx.restore();
+      });
+  }
+
+  function drawCalcinationBlastEffects() {
+    // 1. Starburst pixel explosions
+    for (let i = state.starbursts.length - 1; i >= 0; i--) {
+      const b = state.starbursts[i];
+      drawJaggedStarburst(b.x, b.y, b.radius, b.alpha);
+      b.radius += 1.2;
+      b.alpha -= 0.045;
+      if (b.alpha <= 0) state.starbursts.splice(i, 1);
+    }
+
+    // 2. Iconic [CALCINATION BLAST!] Banner + Starburst (matching concept3_chrono_kiln_1794020308789.jpg)
+    const ev = state.activeCombos;
+    if (state.blastBanner) {
+      drawJaggedStarburst(state.blastBanner.x, state.blastBanner.y, 56, 1.0);
+      drawCalcinationCalloutBox(
+        state.blastBanner.x + 28,
+        state.blastBanner.y - 18,
+        state.blastBanner.text
+      );
+    } else if (ev && ev.comboLines.length > 0 && !state.animating) {
+      // Subtle live preview badge when a 3-in-a-row combo is lined up!
+      const firstCombo = ev.comboLines[0];
+      const centerRect = getCellRect(firstCombo.center[0], firstCombo.center[1]);
+      drawJaggedStarburst(centerRect.cx, centerRect.cy, 30, 0.85);
+      drawCalcinationCalloutBox(centerRect.cx + 22, centerRect.cy - 16, firstCombo.type);
+    }
+
+    // 3. Floating damage & gold texts
     for (let i = state.floatingTexts.length - 1; i >= 0; i--) {
       const ft = state.floatingTexts[i];
       ctx.save();
       ctx.globalAlpha = ft.alpha;
-      ctx.font = 'bold 13px "JetBrains Mono", monospace';
-      ctx.fillStyle = ft.color;
-      ctx.shadowColor = '#000000';
-      ctx.shadowBlur = 6;
+      ctx.font = '10px "Press Start 2P", monospace';
+      ctx.fillStyle = '#000';
       ctx.textAlign = 'center';
+      ctx.fillText(ft.text, ft.x + 2, ft.y + 2);
+      ctx.fillStyle = ft.color;
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.restore();
 
-      ft.y += ft.vy;
-      ft.alpha -= 0.022;
+      ft.y -= 0.8;
+      ft.alpha -= 0.024;
       if (ft.alpha <= 0) state.floatingTexts.splice(i, 1);
     }
   }
 
-  // UI Button Listeners & Keyboard Shortcuts
+  function drawJaggedStarburst(cx, cy, radius, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const spikes = 12;
+
+    // Outer orange/gold jagged star
+    ctx.fillStyle = '#ff9d00';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const r = i % 2 === 0 ? radius : radius * 0.48;
+      const angle = (i * Math.PI) / spikes;
+      const px = cx + Math.cos(angle) * r;
+      const py = cy + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Inner white-yellow hot core
+    ctx.fillStyle = '#fffb9e';
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const r = i % 2 === 0 ? radius * 0.68 : radius * 0.3;
+      const angle = (i * Math.PI) / spikes;
+      const px = cx + Math.cos(angle) * r;
+      const py = cy + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCalcinationCalloutBox(x, y, text) {
+    ctx.save();
+    const w = 228;
+    const h = 36;
+    const clampedX = Math.min(canvas.width - w - 12, Math.max(12, x));
+
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(clampedX - 3, y - 3, w + 6, h + 6);
+    ctx.fillStyle = '#1b140e';
+    ctx.fillRect(clampedX, y, w, h);
+    ctx.strokeStyle = '#ffd56b';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(clampedX + 2, y + 2, w - 4, h - 4);
+
+    ctx.font = '11px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ffd56b';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, clampedX + w / 2, y + 23);
+    ctx.restore();
+  }
+
+  // ============================================================================
+  // MODALS & CONTROLS
+  // ============================================================================
+  function openAlchemistForgeModal() {
+    window.kilnAudio.playRecipeFanfare();
+    if (state.depthIdx >= DEPTHS.length - 1) {
+      openEndModal(true);
+      return;
+    }
+
+    const modal = document.getElementById('shop-modal');
+    document.getElementById('shop-gold-val').textContent = state.gold;
+
+    const draftRow = document.getElementById('shop-draft-row');
+    draftRow.innerHTML = '';
+    const freeUpgrades = [
+      {
+        title: '⚙️ +1 MAX STEAM AP',
+        desc: 'Increases your Steam AP every turn by +1!',
+        apply: () => {
+          state.maxAp += 1;
+        }
+      },
+      {
+        title: '🔥 CRUCIBLE TEMPERING',
+        desc: 'Permanently adds +4 Base Damage to all Calcination Blasts!',
+        apply: () => {
+          state.bonusDamage += 4;
+        }
+      },
+      {
+        title: '❄️ COOLING CONDENSER',
+        desc: 'Vents boiler pressure to a stable 65% and grants +60 Gold!',
+        apply: () => {
+          state.pressure = 65;
+          state.gold += 60;
+        }
+      }
+    ];
+
+    let pickedFree = false;
+    freeUpgrades.forEach(up => {
+      const el = document.createElement('div');
+      el.className = 'shop-card';
+      el.innerHTML = `
+        <div class="shop-card-top"><span>${up.title}</span><span>FREE</span></div>
+        <div class="shop-card-desc">${up.desc}</div>
+      `;
+      el.addEventListener('click', () => {
+        if (pickedFree) return;
+        pickedFree = true;
+        up.apply();
+        el.classList.add('bought');
+        window.kilnAudio.playRecipeFanfare();
+        document.getElementById('shop-gold-val').textContent = state.gold;
+        syncAllUI();
+      });
+      draftRow.appendChild(el);
+    });
+
+    const runesRow = document.getElementById('shop-runes-row');
+    runesRow.innerHTML = '';
+    const shopItems = [
+      {
+        id: '2x',
+        title: '⚜️ 2X BLAST RUNE',
+        cost: 90,
+        desc: 'Etches a permanent 2X Damage & Gold rune onto a Crucible tile.'
+      },
+      {
+        id: 'vent',
+        title: '💨 AUTO-VENT RUNE',
+        cost: 75,
+        desc: 'Etches a cooling rune that vents -8% Pressure whenever matched.'
+      },
+      {
+        id: 'repair',
+        title: '♥ HULL REPAIR',
+        cost: 100,
+        desc: 'Restores +1 Hull Integrity (up to 3 max).'
+      }
+    ];
+
+    shopItems.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'shop-card';
+      el.innerHTML = `
+        <div class="shop-card-top"><span>${item.title}</span><span>🪙 ${item.cost}</span></div>
+        <div class="shop-card-desc">${item.desc}</div>
+      `;
+      el.addEventListener('click', () => {
+        if (el.classList.contains('bought') || state.gold < item.cost) return;
+        if (item.id === 'repair' && state.hull >= state.maxHull) return;
+
+        state.gold -= item.cost;
+        document.getElementById('shop-gold-val').textContent = state.gold;
+        el.classList.add('bought');
+        window.kilnAudio.playRecipeFanfare();
+
+        if (item.id === 'repair') {
+          state.hull = Math.min(state.maxHull, state.hull + 1);
+        } else {
+          const coords = [
+            [1, 1],
+            [1, 2],
+            [2, 1],
+            [2, 2],
+            [0, 1],
+            [2, 3]
+          ];
+          const slot =
+            coords.find(([r, c]) => !state.runes[r][c]) || [
+              Math.floor(Math.random() * 4),
+              Math.floor(Math.random() * 4)
+            ];
+          state.runes[slot[0]][slot[1]] = item.id;
+        }
+        syncAllUI();
+      });
+      runesRow.appendChild(el);
+    });
+
+    modal.classList.remove('hidden');
+  }
+
+  function openEndModal(won) {
+    const modal = document.getElementById('end-modal');
+    document.getElementById('end-title').textContent = won
+      ? '🏆 CHRONO-KILN MASTERED!'
+      : '💥 FURNACE BOILER RUPTURED!';
+    document.getElementById('end-subtitle').textContent = won
+      ? 'You transmuted all 5 Clockwork Depths into Philosopher’s Gold!'
+      : 'The Rust-Automata overheated the subterranean kiln.';
+    document.getElementById('end-stats').innerHTML = `
+      <div>FINAL SCORE: ${state.score}</div>
+      <div>DEPTH REACHED: ${DEPTHS[state.depthIdx].name}</div>
+      <div>GOLD FORGED: 🪙 ${state.gold}</div>
+    `;
+    modal.classList.remove('hidden');
+  }
+
   document.getElementById('btn-ignite').addEventListener('click', () => {
-    executeIgniteSequence();
+    pullIgniteLever();
   });
 
   document.getElementById('btn-undo').addEventListener('click', () => {
-    restoreUndoSnapshot();
+    undoLastAction();
   });
 
   document.getElementById('btn-help').addEventListener('click', () => {
@@ -2139,43 +1853,43 @@
 
   document.getElementById('btn-audio').addEventListener('click', e => {
     const on = window.kilnAudio.toggle();
-    e.currentTarget.textContent = on ? '🔊 SFX: ON' : '🔇 SFX: OFF';
+    e.currentTarget.textContent = on ? '🔊 SFX' : '🔇 MUTE';
   });
 
   document.getElementById('btn-restart').addEventListener('click', () => {
-    resetFullRun();
+    startFreshRun();
   });
 
   document.getElementById('btn-next-sector').addEventListener('click', () => {
     document.getElementById('shop-modal').classList.add('hidden');
-    initSector(state.sectorIndex + 1);
+    initDepth(state.depthIdx + 1);
   });
 
   document.getElementById('btn-play-again').addEventListener('click', () => {
     document.getElementById('end-modal').classList.add('hidden');
-    resetFullRun();
+    startFreshRun();
   });
 
   window.addEventListener('keydown', e => {
     if (e.code === 'Space') {
       e.preventDefault();
-      executeIgniteSequence();
+      pullIgniteLever();
     } else if (e.key === 'z' || e.key === 'Z') {
-      restoreUndoSnapshot();
+      undoLastAction();
     }
   });
 
-  function resetFullRun() {
+  function startFreshRun() {
     state.hull = 3;
-    state.pressure = 64;
+    state.maxAp = 3;
+    state.bonusDamage = 0;
+    state.pressure = 75;
     state.gold = 120;
     state.score = 0;
-    state.deck = ['shift', 'shift', 'rotate', 'rotate', 'bellows', 'transmute', 'overclock'];
     state.runes = Array.from({ length: 4 }, () => Array(4).fill(null));
-    initSector(0);
+    initDepth(0);
   }
 
-  // Boot the game!
-  resetFullRun();
-  requestAnimationFrame(renderScene);
+  startFreshRun();
+  requestAnimationFrame(renderLoop);
 })();

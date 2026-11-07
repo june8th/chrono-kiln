@@ -3,253 +3,128 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CHRONO-KILN // 88 — Neon Clockwork Grid & Route Deckbuilder</title>
+  <title>CHRONO-KILN // GEAR-LOOP</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;1,700&family=JetBrains+Mono:wght@400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="crt-scanlines"></div>
-
-  <div class="app-shell">
-    <!-- TOP TELEMETRY BAR -->
-    <header class="top-hud">
-      <div class="brand-block">
-        <span class="brand-title">CHRONO-KILN <span class="accent-cyan">// 88</span></span>
-        <span class="sector-badge" id="sector-label">SECTOR 1/5: LANTERN ALLEY</span>
+  <div class="game-cabinet">
+    <!-- TOP BAR: TITLE & QUICK UTILITY BUTTONS -->
+    <header class="cabinet-header">
+      <div class="header-left">
+        <span class="badge-pill" id="sector-badge">DEPTH 1/5</span>
+        <span class="badge-pill" id="wave-badge">AUTOMATA: 3</span>
+        <span class="badge-pill hull-badge" id="hull-badge">HULL: ♥♥♥</span>
       </div>
 
-      <div class="telemetry-strip">
-        <div class="stat-pill" title="Current Turn in this Sector">
-          <span class="stat-label">TURN</span>
-          <span class="stat-value" id="turn-val">01</span>
-        </div>
+      <h1 class="game-title">CHRONO-KILN // GEAR-LOOP</h1>
 
-        <div class="stat-pill" title="Kiln Hull Integrity">
-          <span class="stat-label">HULL</span>
-          <span class="stat-value hull-hearts" id="hull-val">♥♥♥</span>
-        </div>
-
-        <div class="stat-pill energy-pill" title="Steam Energy available this turn">
-          <span class="stat-label">STEAM ENERGY</span>
-          <span class="stat-value" id="energy-val">⚡⚡⚡ 3/3</span>
-        </div>
-
-        <div class="stat-pill pressure-pill" id="pressure-pill" title="60%-88% is ZONE 88 (1.5x Damage & Gold!). 100% causes Hull Blowout!">
-          <span class="stat-label">PRESSURE</span>
-          <span class="stat-value" id="pressure-val">65%</span>
-          <span class="zone-tag" id="pressure-zone-tag">ZONE 88 (1.5x)</span>
-        </div>
-
-        <div class="stat-pill gold-pill" title="Alchemical Gold for Night-Market Upgrades">
-          <span class="stat-label">GOLD</span>
-          <span class="stat-value" id="gold-val">$120</span>
-        </div>
-
-        <div class="stat-pill" title="Total Score">
-          <span class="stat-label">SCORE</span>
-          <span class="stat-value" id="score-val">0000</span>
-        </div>
-      </div>
-
-      <div class="top-actions">
-        <button class="hud-btn" id="btn-undo" title="Undo last board manipulation (Z)">↶ UNDO</button>
-        <button class="hud-btn" id="btn-help" title="View Recipes & How to Play">? GUIDE</button>
-        <button class="hud-btn" id="btn-audio" title="Toggle Web Audio Synth">🔊 SFX: ON</button>
-        <button class="hud-btn hud-btn-danger" id="btn-restart" title="Start a fresh run">↻ RESET</button>
+      <div class="header-right">
+        <button class="pixel-btn" id="btn-undo" title="Undo Move (Z)">↶ UNDO</button>
+        <button class="pixel-btn" id="btn-help" title="How to Play & Recipes">? HELP</button>
+        <button class="pixel-btn" id="btn-audio" title="Toggle Sound">🔊 SFX</button>
+        <button class="pixel-btn btn-red" id="btn-restart" title="Restart Run">↻ RESET</button>
       </div>
     </header>
 
-    <!-- MAIN WORKSPACE: ISOMETRIC FOUNDRY CANVAS + RECIPE RADAR -->
-    <main class="main-stage">
-      <div class="canvas-wrapper">
-        <canvas id="kiln-canvas" width="920" height="540"></canvas>
+    <!-- MAIN CANVAS VIEWPORT (Renders the exact PICO-8 Furnace Room, Boiler Gauge, Gear-Toothed 4x4 Grid & Hearth) -->
+    <main class="viewport-frame">
+      <canvas id="kiln-canvas" width="900" height="500"></canvas>
 
-        <!-- Floating Combo Banner Overlay -->
-        <div id="combo-banner" class="combo-banner hidden">
-          <div class="combo-title" id="combo-title">⚡ CALCINATION SURGE!</div>
-          <div class="combo-sub" id="combo-sub">3X ROUTE COMBO // -15% PRESSURE</div>
-        </div>
-
-        <!-- Quick Interactive Hint Bar inside Canvas Frame -->
-        <div class="board-hint-bar" id="board-hint">
-          💡 <strong>TIP:</strong> Click border arrows <span class="accent-cyan">[⇄]</span> to slide rows/cols or inner gear hubs <span class="accent-gold">[↻]</span> to rotate 2x2 quadrants! Link 3+ glowing conduits through Reagents &amp; Automata, then hit <span class="accent-cyan">[IGNITE ▶]</span>.
-        </div>
+      <!-- Live Preview / Instruction Strip at bottom of viewport -->
+      <div class="status-strip" id="status-strip">
+        <span id="preview-text">⚙️ Click any <strong>[SHIFT ROW ➡]</strong> tab on the left or <strong>[ROTATE ↻]</strong> bracket on the grid to align 3+ Reagents &amp; Automata!</span>
+        <span class="ap-readout" id="ap-readout">STEAM AP: ●●● (3/3) + [🔧 FREE MOVE]</span>
       </div>
-
-      <!-- RIGHT SIDE PANEL: RECIPE RADAR & LIVE ROUTE TELEMETRY -->
-      <aside class="side-panel">
-        <div class="panel-card radar-card">
-          <div class="panel-header">
-            <span>RECIPE RADAR</span>
-            <span class="radar-status" id="radar-status">ROUTE ACTIVE</span>
-          </div>
-
-          <div class="route-telemetry">
-            <div class="tele-row">
-              <span>Linked Route Tiles:</span>
-              <strong id="tele-length" class="accent-cyan">0 Tiles</strong>
-            </div>
-            <div class="tele-row">
-              <span>Projected Surge DMG:</span>
-              <strong id="tele-dmg" class="accent-magenta">0 DMG</strong>
-            </div>
-            <div class="tele-row">
-              <span>Automata Targeted:</span>
-              <strong id="tele-targets" class="accent-gold">0 Hit</strong>
-            </div>
-            <div class="tele-row">
-              <span>Pressure Delta:</span>
-              <strong id="tele-pressure">0%</strong>
-            </div>
-            <div class="tele-row">
-              <span>Projected Gold:</span>
-              <strong id="tele-gold" class="accent-gold">+$0</strong>
-            </div>
-          </div>
-
-          <div class="recipe-list">
-            <div class="recipe-item" id="rec-calcination">
-              <div class="rec-icon">⚡</div>
-              <div class="rec-info">
-                <div class="rec-name">CALCINATION LINE <span class="rec-mult">1.8x</span></div>
-                <div class="rec-desc">3+ aligned in a straight line OR Sulfur + Mercury + Cinder trio</div>
-              </div>
-            </div>
-
-            <div class="recipe-item" id="rec-solar">
-              <div class="rec-icon">🔥</div>
-              <div class="rec-info">
-                <div class="rec-name">SOLAR LOOP <span class="rec-mult">2.2x +1E</span></div>
-                <div class="rec-desc">4 connected tiles forming a closed 2x2 circuit loop</div>
-              </div>
-            </div>
-
-            <div class="recipe-item" id="rec-philosopher">
-              <div class="rec-icon">💎</div>
-              <div class="rec-info">
-                <div class="rec-name">ROUTE // 88 CHAIN <span class="rec-mult">3.0x</span></div>
-                <div class="rec-desc">5+ connected tiles in a single continuous neon route!</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- LEGEND / ELEMENT REFERENCE -->
-        <div class="panel-card legend-card">
-          <div class="panel-header">
-            <span>ALCHEMICAL NODES</span>
-            <span class="accent-gold">WAVE <span id="enemy-count-badge">3</span> LEFT</span>
-          </div>
-          <div class="legend-grid">
-            <div class="legend-row">
-              <span class="leg-dot sulfur-dot">⚡</span>
-              <span><strong>Sulfur:</strong> +4 DMG, +$25 Gold</span>
-            </div>
-            <div class="legend-row">
-              <span class="leg-dot mercury-dot">💧</span>
-              <span><strong>Mercury:</strong> -12% Pressure, Arc Splash</span>
-            </div>
-            <div class="legend-row">
-              <span class="leg-dot cinder-dot">🔥</span>
-              <span><strong>Cinder:</strong> 1.5x Mult, +10% Heat, AoE</span>
-            </div>
-            <div class="legend-row">
-              <span class="leg-dot salt-dot">💎</span>
-              <span><strong>Salt:</strong> Wildcard +2 DMG, +$35, Cool -5%</span>
-            </div>
-          </div>
-        </div>
-      </aside>
     </main>
 
-    <!-- BOTTOM DOCK: FREE WRENCH + GEAR CARDS + [IGNITE ▶] TRIGGER -->
-    <footer class="bottom-dock">
-      <div class="dock-left">
-        <div class="dock-header">
-          <span>GEAR-LOOP CARD DOCK <small class="muted">(Click a card or click directly on the grid arrows/hubs)</small></span>
-          <span id="selected-tool-indicator" class="tool-indicator">ACTIVE TOOL: DIRECT BOARD CONTROL</span>
-        </div>
-        <div class="cards-container" id="cards-container">
-          <!-- Cards injected dynamically by js/game.js -->
-        </div>
+    <!-- BOTTOM RIVETED IRON CONTROL DECK: 4 BRASS CARDS + RED [IGNITE] LEVER -->
+    <footer class="control-deck">
+      <div class="deck- rivets-left">
+        <div class="peeking-gear" id="peeking-gear"></div>
       </div>
 
-      <div class="dock-right">
-        <button class="ignite-btn" id="btn-ignite">
-          <span class="ignite-main">IGNITE ▶</span>
-          <span class="ignite-sub" id="ignite-sub">FIRE 88 MPH NEON SURGE (SPACE)</span>
+      <div class="cards-dock" id="cards-dock">
+        <!-- 4 Chunky Brass Action Cards rendered here -->
+      </div>
+
+      <div class="ignite-housing">
+        <button class="ignite-lever-btn" id="btn-ignite" title="Pull Lever to Ignite Furnace Combos (Space)">
+          <div class="lever-slot">
+            <div class="lever-shaft" id="lever-shaft"></div>
+            <div class="lever-handle" id="lever-handle"></div>
+          </div>
+          <span class="ignite-label">IGNITE</span>
         </button>
       </div>
     </footer>
   </div>
 
-  <!-- NIGHT-MARKET ALCHEMIST STALL MODAL (Between Sectors) -->
+  <!-- BETWEEN-WAVE ALCHEMIST FORGE UPGRADE MODAL -->
   <div class="modal-backdrop hidden" id="shop-modal">
-    <div class="modal-box shop-box">
+    <div class="pixel-modal">
       <div class="modal-header">
-        <div>
-          <h2 class="modal-title">🏮 NIGHT-MARKET ALCHEMIST STALL // SECTOR CLEAR!</h2>
-          <p class="modal-subtitle">Draft 1 Free Gear-Loop Card Upgrade &amp; spend Gold to etch permanent runes onto your 4x4 Crucible Grid.</p>
-        </div>
-        <div class="shop-gold-badge">GOLD: <span id="shop-gold-val">$0</span></div>
+        <h2>⚒️ ALCHEMIST FORGE // DEPTH CLEARED!</h2>
+        <div class="gold-box">🪙 <span id="shop-gold-val">0</span></div>
+      </div>
+      <p class="modal-desc">Choose 1 Free Clockwork Upgrade &amp; spend Gold to etch permanent Runes onto your 4x4 Crucible Tiles.</p>
+
+      <div class="shop-section">
+        <h3>1. FREE CLOCKWORK TUNING (PICK ONE)</h3>
+        <div class="shop-grid" id="shop-draft-row"></div>
       </div>
 
       <div class="shop-section">
-        <h3 class="shop-sec-title">1. DRAFT ONE FREE GEAR CARD (Adds to your Gear-Loop Deck)</h3>
-        <div class="shop-cards-row" id="shop-draft-row"></div>
-      </div>
-
-      <div class="shop-section">
-        <h3 class="shop-sec-title">2. ETCH PERMANENT CRUCIBLE FLOOR RUNES &amp; REPAIRS</h3>
-        <div class="shop-runes-row" id="shop-runes-row"></div>
+        <h3>2. ETCH CRUCIBLE TILE RUNES &amp; BOILER REPAIRS</h3>
+        <div class="shop-grid" id="shop-runes-row"></div>
       </div>
 
       <div class="modal-footer">
-        <button class="ignite-btn next-sector-btn" id="btn-next-sector">
-          <span class="ignite-main">NEXT SECTOR ▶</span>
-          <span class="ignite-sub">DESCEND DEEPER INTO THE KILN</span>
-        </button>
+        <button class="pixel-btn btn-gold-large" id="btn-next-sector">DESCEND TO NEXT DEPTH ▶</button>
       </div>
     </div>
   </div>
 
-  <!-- HOW TO PLAY / GUIDE MODAL -->
+  <!-- HOW TO PLAY & ALCHEMICAL RECIPES MODAL -->
   <div class="modal-backdrop hidden" id="help-modal">
-    <div class="modal-box">
+    <div class="pixel-modal">
       <div class="modal-header">
-        <h2 class="modal-title">⚙️ HOW TO PLAY CHRONO-KILN // 88</h2>
-        <button class="hud-btn" id="btn-close-help">✕ CLOSE</button>
+        <h2>📜 CHRONO-KILN MANUAL &amp; RECIPES</h2>
+        <button class="pixel-btn btn-red" id="btn-close-help">✕ CLOSE</button>
       </div>
-      <div class="guide-content">
-        <div class="guide-step">
-          <h4>1. Slide Rows &amp; Rotate 2x2 Quadrants</h4>
-          <p>Every tile on the <strong>4x4 Isometric Crucible Grid</strong> has glowing <strong>Neon Conduit Tracks</strong> and holds either an <strong>Alchemical Reagent</strong> (Sulfur ⚡, Mercury 💧, Cinder 🔥, Salt 💎) or a hostile <strong>Clockwork Automaton 🤖</strong>.</p>
-          <p>Click the <strong>Border Arrows [⇄]</strong> to slide an entire row/column (with wrap-around!), or click any of the <strong>9 Inner Gear Hubs [↻]</strong> at tile intersections to rotate those 4 tiles <em>and</em> their conduit tracks by 90°!</p>
+      <div class="manual-body">
+        <div class="manual-block">
+          <h4>1. SLIDE ROWS &amp; ROTATE 2x2 QUADRANTS</h4>
+          <p>• Click the brass <strong>[SHIFT ROW ➡]</strong> tabs on the grid edges (or drag/click any row or column) to slide tiles with wrap-around.</p>
+          <p>• Click any of the 9 inner <strong>[ROTATE ↻]</strong> gear hubs where 4 tiles meet to spin that 2x2 block 90° clockwise!</p>
+          <p>• You get <strong>3 Steam AP</strong> + <strong>1 Free Wrench Move</strong> every turn, and can <strong>[↶ UNDO]</strong> freely before pulling <strong>[IGNITE]</strong>.</p>
         </div>
-        <div class="guide-step">
-          <h4>2. Wire Neon Routes Through Reagents &amp; Automata</h4>
-          <p>Whenever <strong>3 or more tiles</strong> connect via matching conduit tracks (or align 3-in-a-row), they light up in electric cyan &amp; magenta! Every Reagent in the connected network adds damage, Gold, or cooling, and <strong>every Automaton on or adjacent to the route gets blasted</strong> when you press <strong>[IGNITE ▶]</strong>!</p>
+        <div class="manual-block">
+          <h4>2. ALCHEMICAL COMBO BLASTS (WHEN YOU PULL [IGNITE])</h4>
+          <p>• <strong>💥 CALCINATION BLAST (3-in-a-Row / Column):</strong> Align 3 matching Reagents, 3 distinct Reagents (<strong>Sulfur + Mercury + Cinder</strong>), OR flank an <strong>Automaton</strong> between Reagents! Vaporizes Automata &amp; vents Pressure.</p>
+          <p>• <strong>🔥 SOLAR SQUARE (2x2 Block):</strong> Align 4 matching or synergistic tiles in a 2x2 square for <strong>2.0x Damage &amp; +1 Bonus AP</strong> next turn.</p>
+          <p>• <strong>⚡ GRAND CHAIN (4-in-a-Row or Multi-Combo):</strong> Triggers a <strong>2.5x Crucible Surge</strong> across the entire board!</p>
         </div>
-        <div class="guide-step">
-          <h4>3. Ride the "ZONE 88" Boiler Pressure Sweet Spot (60%–88%)</h4>
-          <p>Watch your <strong>Boiler Pressure</strong>: keeping it between <strong>60% and 88% ("ZONE 88")</strong> grants a massive <strong>1.5x Resonance Bonus</strong> to all Damage and Gold! If it hits 100%, the boiler ruptures (-1 Hull). Use <strong>Mercury 💧</strong> or <strong>Steam Bellows 💨</strong> to vent heat.</p>
+        <div class="manual-block">
+          <h4>3. REAGENTS &amp; BOILER PRESSURE (0%–100%)</h4>
+          <p>• <strong>💎 Sulfur (Yellow Crystal):</strong> High Blast Damage (+5 DMG) &amp; +25 Gold.</p>
+          <p>• <strong>🧪 Mercury (Silver Flask):</strong> Cools Boiler Pressure (-15%) &amp; splashes damage to adjacent Automata.</p>
+          <p>• <strong>🔥 Cinder (Flame):</strong> Multiplies combo damage by <strong>1.5x</strong> (+8% Pressure).</p>
+          <p>• <strong>⚠️ Sweet Spot (60%–85% Pressure):</strong> Grants <strong>1.5x Overdrive Damage &amp; Gold</strong>! Don't let Pressure hit 100% or the boiler ruptures (-1 Hull).</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- GAME OVER / VICTORY MODAL -->
+  <!-- VICTORY / GAME OVER MODAL -->
   <div class="modal-backdrop hidden" id="end-modal">
-    <div class="modal-box end-box">
-      <h2 class="modal-title" id="end-title">🏆 GRAND CHRONO-KILN MASTERED!</h2>
-      <p class="modal-subtitle" id="end-subtitle">You transmuted the Arch-Horologist at 88 MPH!</p>
+    <div class="pixel-modal end-modal-box">
+      <h2 id="end-title">🏆 CHRONO-KILN MASTERED!</h2>
+      <p id="end-subtitle" class="modal-desc"></p>
       <div class="end-stats" id="end-stats"></div>
-      <button class="ignite-btn" id="btn-play-again">
-        <span class="ignite-main">PLAY AGAIN ▶</span>
-        <span class="ignite-sub">START A NEW RUN</span>
-      </button>
+      <button class="pixel-btn btn-gold-large" id="btn-play-again">PLAY AGAIN ▶</button>
     </div>
   </div>
 
